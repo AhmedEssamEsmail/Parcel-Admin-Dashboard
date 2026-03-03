@@ -435,7 +435,12 @@ export default function UploadPage() {
           >
             Clear
           </button>
-          <button className="btn" type="button" onClick={() => void upload()} disabled={!canSubmit}>
+          <button
+            className="btn upload-submit-btn"
+            type="button"
+            onClick={() => void upload()}
+            disabled={!canSubmit}
+          >
             {loading ? "Uploading..." : "Upload Files"}
           </button>
         </div>
