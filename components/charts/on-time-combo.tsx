@@ -2,10 +2,12 @@
 
 import {
   BarElement,
+  BarController,
   CategoryScale,
   Chart as ChartJS,
   Legend,
   LinearScale,
+  LineController,
   LineElement,
   PointElement,
   Tooltip,
@@ -15,6 +17,8 @@ import { Chart } from "react-chartjs-2";
 ChartJS.register(
   CategoryScale,
   LinearScale,
+  BarController,
+  LineController,
   BarElement,
   LineElement,
   PointElement,
