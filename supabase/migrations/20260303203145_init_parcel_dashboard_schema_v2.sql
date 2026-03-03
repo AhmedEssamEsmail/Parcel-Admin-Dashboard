@@ -361,12 +361,12 @@ select
   warehouse_code,
   day,
   count(distinct parcel_id) as total_orders,
-  count(distinct parcel_id) filter (where is_on_time) as on_time,
-  count(distinct parcel_id) filter (where not is_on_time) as late,
+  count(distinct parcel_id) filter (where is_on_time is true) as on_time,
+  count(distinct parcel_id) filter (where is_on_time is false) as late,
   case
-    when count(distinct parcel_id) = 0 then null
-    else (count(distinct parcel_id) filter (where is_on_time))::numeric
-      / (count(distinct parcel_id))::numeric
+    when count(distinct parcel_id) filter (where is_on_time is not null) = 0 then null
+    else (count(distinct parcel_id) filter (where is_on_time is true))::numeric
+      / (count(distinct parcel_id) filter (where is_on_time is not null))::numeric
   end as on_time_pct,
 
   count(distinct parcel_id) filter (where waiting_address) as wa_count,
