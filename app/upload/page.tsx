@@ -162,6 +162,7 @@ export default function UploadPage() {
   }, [defaultWarehouseCode, defaultDatasetType, defaultsLoaded]);
 
   const canSubmit = fileConfigs.length > 0 && !loading;
+  const uploadDisabled = fileConfigs.length === 0 || loading;
 
   const upload = async () => {
     if (!canSubmit) return;
@@ -436,10 +437,13 @@ export default function UploadPage() {
             Clear
           </button>
           <button
-            className="btn upload-submit-btn"
+            className={`upload-submit-btn ${uploadDisabled ? "is-disabled" : ""}`}
             type="button"
-            onClick={() => void upload()}
-            disabled={!canSubmit}
+            onClick={() => {
+              if (uploadDisabled) return;
+              void upload();
+            }}
+            aria-disabled={uploadDisabled}
           >
             {loading ? "Uploading..." : "Upload Files"}
           </button>

@@ -198,6 +198,13 @@ button {
   gap: 12px;
   z-index: 2;
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
+  overflow: visible;
+}
+
+.upload-actions .btn-row {
+  margin-left: auto;
+  flex-shrink: 0;
+  align-items: center;
 }
 
 .upload-submit-btn {
@@ -205,19 +212,25 @@ button {
   color: #ffffff !important;
   border: 1px solid var(--primary-strong) !important;
   min-width: 140px;
+  min-height: 42px;
   font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   position: relative;
   z-index: 1;
+  opacity: 1 !important;
 }
 
 .upload-submit-btn:hover {
   background-color: var(--primary-strong) !important;
 }
 
-.upload-submit-btn:disabled {
+.upload-submit-btn.is-disabled {
   background-color: #94a3b8 !important;
   border-color: #94a3b8 !important;
   color: #ffffff !important;
+  pointer-events: none;
 }
 
 .table-card td select {

@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { AppNav } from "@/components/layout/nav";
 import { WAREHOUSE_CODES } from "@/lib/csv/mappings";
@@ -37,7 +37,7 @@ const COLUMNS = [
 
 export default function RawDeliveryStagesPage() {
   const [warehouse, setWarehouse] = useState("KUWAIT");
-  const [from, setFrom] = useState(todayOffset(-7));
+  const [from, setFrom] = useState(todayOffset(-45));
   const [to, setTo] = useState(todayOffset(0));
   const [deliveryScope, setDeliveryScope] = useState<RawDeliveryScope>("delivered");
   const [parcelId, setParcelId] = useState("");
@@ -89,6 +89,11 @@ export default function RawDeliveryStagesPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    void load(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <main className="page-wrap">

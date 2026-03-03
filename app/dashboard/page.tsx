@@ -23,7 +23,7 @@ function dateOffset(days: number): string {
 
 export default function DashboardPage() {
   const [warehouse, setWarehouse] = useState<string>("KUWAIT");
-  const [from, setFrom] = useState<string>(dateOffset(-7));
+  const [from, setFrom] = useState<string>(dateOffset(-45));
   const [to, setTo] = useState<string>(dateOffset(0));
   const [rows, setRows] = useState<DodRow[]>([]);
   const [loading, setLoading] = useState(false);
