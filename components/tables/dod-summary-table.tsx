@@ -1,3 +1,5 @@
+import { formatDateMmmDd } from "@/lib/utils/date-format";
+
 type DodRow = {
   day: string;
   total_placed: number;
@@ -35,7 +37,7 @@ export function DodSummaryTable({ rows }: Props) {
             ) : (
               rows.map((row) => (
                 <tr key={row.day}>
-                  <td>{row.day}</td>
+                  <td>{formatDateMmmDd(row.day)}</td>
                   <td>{row.total_placed}</td>
                   <td>{row.total_delivered}</td>
                   <td>{row.otd_pct === null ? "-" : `${(row.otd_pct * 100).toFixed(2)}%`}</td>

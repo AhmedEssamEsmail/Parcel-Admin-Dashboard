@@ -5,6 +5,7 @@ import {
   BarController,
   CategoryScale,
   Chart as ChartJS,
+  type ChartOptions,
   Legend,
   LinearScale,
   LineController,
@@ -13,6 +14,7 @@ import {
   Tooltip,
 } from "chart.js";
 import { Chart } from "react-chartjs-2";
+import { formatDateMmmDd } from "@/lib/utils/date-format";
 
 ChartJS.register(
   CategoryScale,
@@ -34,8 +36,10 @@ type Props = {
 };
 
 export function OnTimeComboChart({ labels, totals, onTimePct, waDeliveredPct }: Props) {
+  const formattedLabels = labels.map((label) => formatDateMmmDd(label));
+
   const data = {
-    labels,
+    labels: formattedLabels,
     datasets: [
       {
         type: "bar" as const,
@@ -50,8 +54,8 @@ export function OnTimeComboChart({ labels, totals, onTimePct, waDeliveredPct }: 
         type: "line" as const,
         label: "On Time %",
         data: onTimePct,
-        borderColor: "#0f172a",
-        pointBackgroundColor: "#0f172a",
+        borderColor: "#6b7280",
+        pointBackgroundColor: "#6b7280",
         tension: 0.3,
         yAxisID: "y1",
         order: 1,
@@ -73,11 +77,35 @@ export function OnTimeComboChart({ labels, totals, onTimePct, waDeliveredPct }: 
     ],
   };
 
-  const options = {
+  const options: ChartOptions<"bar"> = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { position: "top" as const },
+      legend: {
+        position: "top",
+        labels: {
+          generateLabels(chart) {
+            const base = ChartJS.defaults.plugins.legend.labels.generateLabels(chart);
+            return base.map((labelItem) => {
+              if (labelItem.datasetIndex === undefined) return labelItem;
+              const dataset = chart.data.datasets[labelItem.datasetIndex];
+              if (dataset?.type !== "line") return labelItem;
+
+              const color =
+                (Array.isArray(dataset.borderColor)
+                  ? dataset.borderColor[0]
+                  : dataset.borderColor) ?? labelItem.strokeStyle;
+
+              return {
+                ...labelItem,
+                fillStyle: color,
+                strokeStyle: color,
+                lineWidth: 0,
+              };
+            });
+          },
+        },
+      },
     },
     scales: {
       y: {
@@ -97,7 +125,7 @@ export function OnTimeComboChart({ labels, totals, onTimePct, waDeliveredPct }: 
   return (
     <div className="chart-card">
       <h3>On-Time Performance</h3>
-      <div className="chart-wrapper">
+      <div className="chart-wrapper chart-wrapper--on-time">
         <Chart type="bar" data={data as never} options={options as never} />
       </div>
     </div>

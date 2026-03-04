@@ -5,8 +5,12 @@ import { useEffect, useState } from "react";
 import { AppNav } from "@/components/layout/nav";
 import { WAREHOUSE_CODES } from "@/lib/csv/mappings";
 import type { RawDeliveryScope, RawDeliveryStagesResponse } from "@/lib/table/rawDeliveryStages";
+import { formatDateMmmDd, formatDateTimeMmmDdHhMmSs } from "@/lib/utils/date-format";
 
 type RawRow = Record<string, string | number | null>;
+
+const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const DATE_TIME_REGEX = /^\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}/;
 
 function todayOffset(days: number): string {
   const d = new Date();
@@ -317,7 +321,7 @@ export default function RawDeliveryStagesPage() {
                 rows.map((row, index) => (
                   <tr key={`${row.parcel_id}-${index}`}>
                     {visibleColumns.map((column) => (
-                      <td key={column}>{String(row[column] ?? "")}</td>
+                      <td key={column}>{formatRawCellValue(row[column])}</td>
                     ))}
                   </tr>
                 ))
@@ -328,4 +332,19 @@ export default function RawDeliveryStagesPage() {
       </section>
     </main>
   );
+}
+
+function formatRawCellValue(value: string | number | null | undefined): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value !== "string") return String(value);
+
+  const trimmed = value.trim();
+  if (DATE_TIME_REGEX.test(trimmed)) {
+    return formatDateTimeMmmDdHhMmSs(trimmed);
+  }
+  if (DATE_ONLY_REGEX.test(trimmed)) {
+    return formatDateMmmDd(trimmed);
+  }
+
+  return value;
 }

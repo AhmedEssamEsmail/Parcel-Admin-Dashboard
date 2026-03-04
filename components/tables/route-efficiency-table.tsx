@@ -1,5 +1,7 @@
 "use client";
 
+import { formatDateMmmDd, formatMinutesToHHMM } from "@/lib/utils/date-format";
+
 type Row = {
   warehouse_code: string;
   day: string;
@@ -21,7 +23,7 @@ export function RouteEfficiencyTable({ rows }: { rows: Row[] }) {
         <tbody>
           {rows.map((row, idx) => (
             <tr key={`${row.day}-${row.city}-${idx}`}>
-              <td>{row.day}</td><td>{row.warehouse_code}</td><td>{row.city}</td><td>{row.total_orders}</td><td>{row.delivered_count}</td><td>{row.on_time_count}</td><td>{row.active_areas}</td><td>{row.parcels_per_active_area?.toFixed(2) ?? "-"}</td><td>{row.avg_delivery_minutes?.toFixed(2) ?? "-"}</td><td>{row.otd_pct?.toFixed(2) ?? "-"}</td>
+              <td>{formatDateMmmDd(row.day)}</td><td>{row.warehouse_code}</td><td>{row.city}</td><td>{row.total_orders}</td><td>{row.delivered_count}</td><td>{row.on_time_count}</td><td>{row.active_areas}</td><td>{row.parcels_per_active_area?.toFixed(2) ?? "-"}</td><td>{formatMinutesToHHMM(row.avg_delivery_minutes)}</td><td>{row.otd_pct?.toFixed(2) ?? "-"}</td>
             </tr>
           ))}
         </tbody>

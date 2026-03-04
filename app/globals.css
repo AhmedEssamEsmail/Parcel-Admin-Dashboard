@@ -97,6 +97,10 @@ a {
   height: 320px;
 }
 
+.chart-wrapper--on-time {
+  height: 400px;
+}
+
 h1 {
   font-size: 1.4rem;
   margin-bottom: 8px;
@@ -317,6 +321,17 @@ button {
   margin-bottom: 8px;
 }
 
+.wow-header-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.wow-global-collapse-btn {
+  white-space: nowrap;
+  padding: 6px 10px;
+}
+
 .including-wa {
   margin-left: 8px;
   font-size: 0.85rem;
@@ -382,12 +397,16 @@ button {
 
 .comparison-widget .comparison-cards {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
 
 .comparison-diff {
-  margin-top: 12px;
+  margin-top: 0;
+}
+
+.comparison-diff-card {
+  text-align: center;
 }
 
 .improved {
@@ -658,6 +677,10 @@ thead th {
 @media screen and (max-width: 1024px) {
   .grid.three {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .comparison-widget .comparison-cards {
+    grid-template-columns: 1fr;
   }
 }
 

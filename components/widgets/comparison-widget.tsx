@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { formatDateMmmDd } from "@/lib/utils/date-format";
 
 type Props = {
   warehouse: string;
@@ -107,7 +108,7 @@ export function ComparisonWidget({ warehouse }: Props) {
             <div className="card">
               <h4>Period A</h4>
               <p className="muted">
-                {data.period_a.start} to {data.period_a.end}
+                {formatDateMmmDd(data.period_a.start)} to {formatDateMmmDd(data.period_a.end)}
               </p>
               <p>Placed: {data.period_a.total_placed}</p>
               <p>Delivered: {data.period_a.total_delivered}</p>
@@ -117,28 +118,28 @@ export function ComparisonWidget({ warehouse }: Props) {
             <div className="card">
               <h4>Period B</h4>
               <p className="muted">
-                {data.period_b.start} to {data.period_b.end}
+                {formatDateMmmDd(data.period_b.start)} to {formatDateMmmDd(data.period_b.end)}
               </p>
               <p>Placed: {data.period_b.total_placed}</p>
               <p>Delivered: {data.period_b.total_delivered}</p>
               <p>OTD%: {data.period_b.otd_pct?.toFixed(1) ?? "-"}%</p>
               <p>Avg Time: {formatTime(data.period_b.avg_delivery_minutes)}</p>
             </div>
-          </div>
-          <div className="comparison-diff">
-            <h4>Change (B vs A)</h4>
-            <p>
-              Placed: {formatDiff(data.comparison.total_placed)}
-            </p>
-            <p>
-              Delivered: {formatDiff(data.comparison.total_delivered)}
-            </p>
-            <p className={data.comparison.otd_pct.improved ? "improved" : "declined"}>
-              OTD%: {formatDelta(data.comparison.otd_pct.absolute, "%")}
-            </p>
-            <p className={data.comparison.avg_delivery_minutes.improved ? "improved" : "declined"}>
-              Avg Time: {formatDelta(data.comparison.avg_delivery_minutes.absolute, "m")}
-            </p>
+            <div className="card comparison-diff comparison-diff-card">
+              <h4>Change (B vs A)</h4>
+              <p>
+                Placed: {formatDiff(data.comparison.total_placed)}
+              </p>
+              <p>
+                Delivered: {formatDiff(data.comparison.total_delivered)}
+              </p>
+              <p className={data.comparison.otd_pct.improved ? "improved" : "declined"}>
+                OTD%: {formatDelta(data.comparison.otd_pct.absolute, "%")}
+              </p>
+              <p className={data.comparison.avg_delivery_minutes.improved ? "improved" : "declined"}>
+                Avg Time: {formatDelta(data.comparison.avg_delivery_minutes.absolute, "m")}
+              </p>
+            </div>
           </div>
           <div className="btn-row">
             <a

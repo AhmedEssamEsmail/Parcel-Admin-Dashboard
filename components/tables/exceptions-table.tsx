@@ -1,5 +1,7 @@
 "use client";
 
+import { formatDateMmmDd } from "@/lib/utils/date-format";
+
 type ExceptionRow = {
   id: string;
   warehouse_code: string;
@@ -37,7 +39,7 @@ export function ExceptionsTable({ rows, onUpdate }: { rows: ExceptionRow[]; onUp
               <td>{row.severity}</td>
               <td>{row.status}</td>
               <td>{row.aging_hours}</td>
-              <td>{new Date(row.detected_at).toLocaleString()}</td>
+              <td>{formatDateMmmDd(row.detected_at)}</td>
               <td className="btn-row">
                 <button className="btn-ghost" onClick={() => void onUpdate(row.id, "acknowledged")} type="button">Ack</button>
                 <button className="btn" onClick={() => void onUpdate(row.id, "resolved")} type="button">Resolve</button>
