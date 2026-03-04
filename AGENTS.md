@@ -53,7 +53,7 @@ Workflow:
 5. Continue only after migration succeeds.
 
 ## 4) Always Double Check (verification gate)
-After completing any phase, task group, or implementation step, verify there are no errors before proceeding.
+After completing all phases of implementations, verify there are no errors before proceeding.
 
 Run these commands in order:
 - npm run build

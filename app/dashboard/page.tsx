@@ -121,7 +121,7 @@ export default function DashboardPage() {
       <AppNav />
 
       <div className="refresh-bar">
-        <span>Last updated: {secondsAgo} seconds ago</span>
+        <span>Last updated: {formatElapsed(secondsAgo)} ago</span>
         <button onClick={() => void load()} disabled={loading}>
           🔄 Refresh Now
         </button>
@@ -227,4 +227,13 @@ function formatTime(minutes: number | null): string {
   const hours = Math.floor(minutes / 60);
   const mins = Math.round(minutes % 60);
   return `${hours}h ${mins}m`;
+}
+
+function formatElapsed(totalSeconds: number): string {
+  const safeSeconds = Math.max(0, totalSeconds);
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+  const seconds = safeSeconds % 60;
+
+  return [hours, minutes, seconds].map((value) => String(value).padStart(2, "0")).join(":");
 }
