@@ -57,6 +57,17 @@ test("rate-limit middleware uses Supabase RPC and no referer bypass", () => {
   assert.ok(!source.includes('request.headers.get("referer")'));
 });
 
+test("new operations routes and nav links exist", () => {
+  assert.ok(fs.existsSync(path.resolve(__dirname, "..", "..", "app/api/exceptions/route.ts")));
+  assert.ok(fs.existsSync(path.resolve(__dirname, "..", "..", "app/api/promise-reliability/route.ts")));
+  assert.ok(fs.existsSync(path.resolve(__dirname, "..", "..", "app/api/route-efficiency/route.ts")));
+
+  const navSource = readSource("components/layout/nav.tsx");
+  assert.match(navSource, /"\/exceptions"/);
+  assert.match(navSource, /"\/promise-reliability"/);
+  assert.match(navSource, /"\/route-efficiency"/);
+});
+
 function readSource(relativePath) {
   const fullPath = path.resolve(__dirname, "..", "..", relativePath);
   return fs.readFileSync(fullPath, "utf8");

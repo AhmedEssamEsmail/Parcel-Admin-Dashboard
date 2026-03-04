@@ -122,6 +122,13 @@ test("rateLimitWithClient enforces threshold and returns 429 with expected heade
   assert.equal(client.callCount, 3);
 });
 
+test("export API supports new dataset types", () => {
+  const source = fs.readFileSync(path.resolve(__dirname, "..", "..", "app/api/export/csv/route.ts"), "utf8");
+  assert.match(source, /case "exceptions"/);
+  assert.match(source, /case "promise"/);
+  assert.match(source, /case "route-efficiency"/);
+});
+
 function makeSupabaseSelectMock(rows) {
   const state = {
     selectedTable: "",

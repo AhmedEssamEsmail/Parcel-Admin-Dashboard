@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 import { AppNav } from "@/components/layout/nav";
 import { WAREHOUSE_CODES } from "@/lib/csv/mappings";
-import type { RawDeliveryScope } from "@/lib/table/rawDeliveryStages";
+import type { RawDeliveryScope, RawDeliveryStagesResponse } from "@/lib/table/rawDeliveryStages";
 
 type RawRow = Record<string, string | number | null>;
 
@@ -85,10 +85,13 @@ export default function RawDeliveryStagesPage() {
   const [limit] = useState(50);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
+  const [timingSourceSupported, setTimingSourceSupported] = useState(true);
 
   const load = async (nextOffset = offset) => {
     setLoading(true);
     setError(null);
+    setWarning(null);
 
     try {
       const params = new URLSearchParams({
@@ -112,9 +115,7 @@ export default function RawDeliveryStagesPage() {
       if (timingSource !== "all") params.set("timing_source", timingSource);
 
       const response = await fetch(`/api/raw-delivery-stages?${params.toString()}`);
-      const payload = (await response.json()) as {
-        rows?: RawRow[];
-        totalCount?: number;
+      const payload = (await response.json()) as RawDeliveryStagesResponse<RawRow> & {
         error?: string;
       };
 
@@ -126,6 +127,8 @@ export default function RawDeliveryStagesPage() {
       setRows(payload.rows ?? []);
       setTotalCount(payload.totalCount ?? 0);
       setOffset(nextOffset);
+      setTimingSourceSupported(payload.timingSourceSupported ?? true);
+      setWarning(payload.warning ?? null);
     } catch {
       setError("Network error while loading raw rows.");
     } finally {
@@ -137,6 +140,16 @@ export default function RawDeliveryStagesPage() {
     void load(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!timingSourceSupported && timingSource !== "all") {
+      setTimingSource("all");
+    }
+  }, [timingSourceSupported, timingSource]);
+
+  const visibleColumns = timingSourceSupported
+    ? COLUMNS
+    : COLUMNS.filter((column) => column !== "timing_source");
 
   return (
     <main className="page-wrap">
@@ -244,7 +257,11 @@ export default function RawDeliveryStagesPage() {
 
         <label>
           Timing Source
-          <select value={timingSource} onChange={(event) => setTimingSource(event.target.value)}>
+          <select
+            value={timingSource}
+            onChange={(event) => setTimingSource(event.target.value)}
+            disabled={!timingSourceSupported}
+          >
             <option value="all">All</option>
             <option value="CITY_RULE">City Rule</option>
             <option value="WAREHOUSE_FALLBACK">Warehouse Fallback</option>
@@ -276,6 +293,7 @@ export default function RawDeliveryStagesPage() {
       </section>
 
       {error && <p className="error">{error}</p>}
+      {warning && <p className="muted">{warning}</p>}
 
       <section className="table-card">
         <h3>Raw Delivery Stages</h3>
@@ -283,7 +301,7 @@ export default function RawDeliveryStagesPage() {
           <table>
             <thead>
               <tr>
-                {COLUMNS.map((column) => (
+                {visibleColumns.map((column) => (
                   <th key={column}>{column}</th>
                 ))}
               </tr>
@@ -291,14 +309,14 @@ export default function RawDeliveryStagesPage() {
             <tbody>
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={COLUMNS.length} className="empty-cell">
+                  <td colSpan={visibleColumns.length} className="empty-cell">
                     No rows loaded.
                   </td>
                 </tr>
               ) : (
                 rows.map((row, index) => (
                   <tr key={`${row.parcel_id}-${index}`}>
-                    {COLUMNS.map((column) => (
+                    {visibleColumns.map((column) => (
                       <td key={column}>{String(row[column] ?? "")}</td>
                     ))}
                   </tr>

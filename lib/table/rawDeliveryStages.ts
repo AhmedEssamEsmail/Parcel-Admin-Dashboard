@@ -5,4 +5,6 @@ export type RawDeliveryStagesResponse<T> = {
   totalCount: number;
   limit: number;
   offset: number;
+  timingSourceSupported?: boolean;
+  warning?: string;
 };

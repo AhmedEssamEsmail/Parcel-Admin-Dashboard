@@ -50,6 +50,12 @@ a {
   padding: 12px 14px;
 }
 
+.app-nav__mobile-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .app-nav__brand {
   font-weight: 700;
 }
@@ -256,6 +262,26 @@ button {
   padding: 10px 14px;
 }
 
+.refresh-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.refresh-help-tooltip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid #94a3b8;
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  cursor: help;
+  background: #fff;
+}
+
 .avg-delivery-widget .avg-stat {
   display: flex;
   align-items: center;
@@ -288,6 +314,7 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  margin-bottom: 8px;
 }
 
 .including-wa {
@@ -302,10 +329,11 @@ button {
 }
 
 .toggle-switch button {
-  border: 1px solid var(--border);
+  border: 1px solid #cbd5e1;
   background: #eef4f7;
-  padding: 8px 12px;
+  padding: 8px 16px;
   border-radius: 999px;
+  font-weight: 500;
 }
 
 .toggle-switch button.active {
@@ -324,15 +352,27 @@ button {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 4px 2px;
+  padding: 6px 2px;
   background: transparent;
   color: var(--text);
+}
+
+.warehouse-collapse-icon {
+  width: 18px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 1rem;
 }
 
 .warehouse-group-code {
   color: var(--muted);
   font-size: 0.8rem;
   font-weight: 500;
+}
+
+.warehouse-collapsed-summary-row td {
+  background: #fcfdff;
+  border-bottom: 1px solid #e2e8f0;
 }
 
 .comparison-widget .comparison-cards {
@@ -408,8 +448,10 @@ button {
 .mobile-menu-btn {
   display: none;
   background: #eef4f7;
-  border-radius: 8px;
-  padding: 8px 12px;
+  border-radius: 10px;
+  padding: 10px 12px;
+  border: 1px solid #dbe2ea;
+  min-width: 44px;
 }
 
 .mobile-menu-overlay {
@@ -417,17 +459,54 @@ button {
   inset: 0;
   background: rgba(15, 23, 42, 0.4);
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
   z-index: 20;
 }
 
 .mobile-menu {
-  width: 220px;
+  width: 100vw;
+  min-height: 100dvh;
   background: #fff;
-  padding: 16px;
+  padding: 16px 14px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
+}
+
+.mobile-menu__links {
+  display: grid;
+  gap: 10px;
+}
+
+.mobile-menu__links a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 14px 12px;
+  font-size: 1rem;
+}
+
+.mobile-menu__links a.active {
+  background: #e8f7f5;
+  border-color: #bcded8;
+  color: var(--primary-strong);
+}
+
+.mobile-menu__footer {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.mobile-menu__logout {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid #dbe2ea;
+  background: #eef4f7;
+  font-weight: 600;
 }
 
 .csv-preview {
@@ -551,9 +630,13 @@ thead th {
     display: none;
   }
 
+  .app-nav__logout-desktop {
+    display: none;
+  }
+
   .mobile-menu-btn {
     display: inline-flex;
-    justify-self: end;
+    justify-self: start;
   }
 
   .grid.two,

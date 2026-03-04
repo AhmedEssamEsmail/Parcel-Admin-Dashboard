@@ -84,7 +84,10 @@ export const GET = withRateLimit(async (request: NextRequest) => {
   const params = request.nextUrl.searchParams;
   const warehouse = params.get("warehouse")?.trim().toUpperCase();
   const requestedPeriodType = params.get("periodType")?.trim().toLowerCase();
+  const from = params.get("from")?.trim();
+  const to = params.get("to")?.trim();
   const periodType = requestedPeriodType === "month" ? "month" : "week";
+  const hasDateRange = Boolean(from || to);
   const limit = Math.min(
     24,
     Math.max(1, Number.parseInt(params.get("limit") || "6", 10) || 6),
@@ -101,13 +104,18 @@ export const GET = withRateLimit(async (request: NextRequest) => {
   const viewName = periodType === "month" ? "v_mom_summary" : "v_wow_summary";
   const dateColumn = periodType === "month" ? "month_start" : "week_start";
 
-  const { data: fastRows, error: fastError } = await supabase.rpc("get_wow_summary_fast", {
-    p_warehouse_code: warehouse,
-    p_period_type: periodType,
-    p_limit: limit,
-  });
+  const fastRpcResult = hasDateRange
+    ? { data: null, error: { message: "Skipped fast path because from/to filters are applied." } }
+    : await supabase.rpc("get_wow_summary_fast", {
+        p_warehouse_code: warehouse,
+        p_period_type: periodType,
+        p_limit: limit,
+      });
 
-  if (!fastError && Array.isArray(fastRows) && fastRows.length > 0) {
+  const fastRows = fastRpcResult.data as Array<Record<string, unknown>> | null;
+  const fastError = fastRpcResult.error;
+
+  if (!hasDateRange && !fastError && Array.isArray(fastRows) && fastRows.length > 0) {
     const adaptedRows = fastRows.map((row) => ({
       warehouse_code: row.warehouse_code,
       total_placed: Number(row.total_placed ?? 0),
@@ -164,12 +172,20 @@ export const GET = withRateLimit(async (request: NextRequest) => {
   }
 
   if (warehouse !== "ALL") {
-    const { data, error } = await supabase
+    let query = supabase
       .from(viewName)
       .select("*")
       .eq("warehouse_code", warehouse)
-      .order(dateColumn, { ascending: false })
-      .limit(limit);
+      .order(dateColumn, { ascending: false });
+
+    if (from) {
+      query = query.gte(dateColumn, from);
+    }
+    if (to) {
+      query = query.lte(dateColumn, to);
+    }
+
+    const { data, error } = await query.limit(limit);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -184,11 +200,22 @@ export const GET = withRateLimit(async (request: NextRequest) => {
 
   const [{ data: periodData, error: periodError }, { data: warehouseData, error: warehouseError }] =
     await Promise.all([
-      supabase
-        .from(viewName)
-        .select("*")
-        .order("warehouse_code", { ascending: true })
-        .order(dateColumn, { ascending: false }),
+      (async () => {
+        let query = supabase
+          .from(viewName)
+          .select("*")
+          .order("warehouse_code", { ascending: true })
+          .order(dateColumn, { ascending: false });
+
+        if (from) {
+          query = query.gte(dateColumn, from);
+        }
+        if (to) {
+          query = query.lte(dateColumn, to);
+        }
+
+        return query;
+      })(),
       supabase.from("warehouses").select("code,name"),
     ]);
 

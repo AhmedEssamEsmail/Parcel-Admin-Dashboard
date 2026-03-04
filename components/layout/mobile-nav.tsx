@@ -1,17 +1,21 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
+import { useState } from "react";
 
-const MOBILE_LINKS = [
-  { href: "/dashboard", label: "Dashboard", icon: "📊" },
-  { href: "/zone-performance", label: "Zone Performance", icon: "🗺️" },
-  { href: "/data-quality", label: "Data Quality", icon: "🔍" },
-  { href: "/settings", label: "Settings", icon: "⚙️" },
-  { href: "/upload", label: "Upload", icon: "📤" },
-];
+type MobileNavLink = {
+  href: string;
+  label: string;
+  icon: string;
+};
 
-export function MobileNav() {
+type MobileNavProps = {
+  links: MobileNavLink[];
+  activePath: string;
+  onLogout: () => Promise<void>;
+};
+
+export function MobileNav({ links, activePath, onLogout }: MobileNavProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -20,6 +24,7 @@ export function MobileNav() {
         className="mobile-menu-btn"
         onClick={() => setIsOpen((current) => !current)}
         aria-label="Toggle menu"
+        type="button"
       >
         {isOpen ? "✕" : "☰"}
       </button>
@@ -27,11 +32,32 @@ export function MobileNav() {
       {isOpen && (
         <div className="mobile-menu-overlay" onClick={() => setIsOpen(false)}>
           <nav className="mobile-menu" onClick={(event) => event.stopPropagation()}>
-            {MOBILE_LINKS.map((link) => (
-              <Link key={link.href} href={link.href} onClick={() => setIsOpen(false)}>
-                {link.icon} {link.label}
-              </Link>
-            ))}
+            <div className="mobile-menu__links">
+              {links.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={activePath === link.href ? "active" : ""}
+                  onClick={() => setIsOpen(false)}
+                >
+                  <span>{link.icon}</span>
+                  <span>{link.label}</span>
+                </Link>
+              ))}
+            </div>
+
+            <div className="mobile-menu__footer">
+              <button
+                className="mobile-menu__logout"
+                type="button"
+                onClick={() => {
+                  setIsOpen(false);
+                  void onLogout();
+                }}
+              >
+                Logout
+              </button>
+            </div>
           </nav>
         </div>
       )}

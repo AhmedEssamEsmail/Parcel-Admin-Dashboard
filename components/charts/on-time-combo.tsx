@@ -44,6 +44,7 @@ export function OnTimeComboChart({ labels, totals, onTimePct, waDeliveredPct }: 
         backgroundColor: "rgba(16, 185, 129, 0.75)",
         borderRadius: 4,
         yAxisID: "y",
+        order: 3,
       },
       {
         type: "line" as const,
@@ -53,6 +54,9 @@ export function OnTimeComboChart({ labels, totals, onTimePct, waDeliveredPct }: 
         pointBackgroundColor: "#0f172a",
         tension: 0.3,
         yAxisID: "y1",
+        order: 1,
+        borderWidth: 3,
+        pointRadius: 3,
       },
       {
         type: "line" as const,
@@ -62,6 +66,9 @@ export function OnTimeComboChart({ labels, totals, onTimePct, waDeliveredPct }: 
         pointBackgroundColor: "#f97316",
         tension: 0.3,
         yAxisID: "y1",
+        order: 1,
+        borderWidth: 3,
+        pointRadius: 3,
       },
     ],
   };

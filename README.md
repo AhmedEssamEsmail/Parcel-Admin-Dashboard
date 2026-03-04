@@ -1,70 +1,133 @@
 # Parcel Admin Dashboard
 
-Operations dashboard for parcel delivery performance, raw stage auditing, data quality monitoring, and CSV-based ingestion.
+Operational dashboard for monitoring parcel delivery performance across warehouses, auditing stage-level timings, and controlling KPI data quality through structured CSV ingestion.
 
-## Current Scope
+---
 
-- Dashboard KPIs (DOD, WoW/MoM, WA metrics, charting)
-- Raw Delivery Stages table with operational filters
-- Data Quality monitor with issue detection + resolution flow
-- Upload pipeline for operational datasets
-- Settings/schedule management APIs
+## 1) Product Concept
 
-## Major Implemented Enhancements
+This system is built for operations teams who need to:
+- track On-Time Delivery (OTD) and delivery speed,
+- compare weekly/monthly trends by warehouse,
+- inspect raw stage timelines per parcel,
+- detect data-quality issues early,
+- ingest multiple source datasets (delivery details, parcel logs, WA flags, timing rules, etc.) safely.
 
-### v3
-- Raw Delivery Stages calculation alignment and audit artifact
-- WA Orders source integration
-- Delivery Timing Rules source integration
-- WoW/MoM late metric fixes + grouped warehouse view
-- WA Delivered % chart line
+It combines:
+- **analytics pages** (Dashboard, Raw Delivery Stages, City Performance, Exceptions, Promise Reliability, Route Efficiency, Data Quality),
+- **configuration pages** (Settings, Schedule),
+- **ingestion pipeline** (Upload page + normalizers + ingest API + Supabase views).
 
-### v4
-- Parcel Logs blank timestamp fill-forward (ingest normalizer)
-- Ingest observability (`ingest_runs`, health API, dashboard widget)
-- Data quality guardrails expansion
-- Performance indexes + WoW fast-path RPC
-- UX polish and updated ops/spec docs
+---
 
-## Key Pages
+## 2) Core Website Features
 
-- `/dashboard`
-- `/raw-delivery-stages`
-- `/data-quality`
-- `/upload`
-- `/settings`
-- `/schedule`
+### Dashboard (`/dashboard`)
+- Day-over-day summary tables (including/excluding WA orders)
+- Week-over-week / month-over-month table
+- Warehouse grouping in ALL mode
+- WA Delivered % line in chart
+- Average delivery widget
+- Auto-refresh + manual refresh
 
-## Upload Datasets
+### Raw Delivery Stages (`/raw-delivery-stages`)
+- Parcel-level stage timestamps and durations
+- SLA/status columns for processing, preparing, delivery
+- Filters: warehouse, date range, parcel id, WA, KPI, cutoff, ticket, zone/city/area, ops issue, timing source, delivery scope
 
-- `delivery_details`
-- `parcel_logs`
-- `items_per_order` (optional)
-- `collectors_report` (optional)
-- `prepare_report` (optional)
-- `freshdesk_tickets` (optional)
-- `wa_orders` (optional)
-- `delivery_timing_rules` (optional)
+### Data Quality (`/data-quality`)
+- Categorized issue monitoring (critical/warning/info)
+- Resolution workflow
+- Filterable by severity/check/resolution
 
-## Specs & Documentation
+### Upload (`/upload`)
+- Multi-file upload workflow with preview
+- Dataset and warehouse auto-detection from file names
+- Normalization + validation errors/warnings
+- **Parcel Logs blank timestamp fill-forward** support
 
+### Settings / Schedule
+- SLA and override APIs
+- Shift/schedule configuration endpoints
+
+---
+
+## 3) Main Metrics & Logic
+
+- **OTD %** = `on_time / total_delivered * 100`
+- **Late** = `total_delivered - on_time`
+- **WA Delivered %** = `wa_delivered_count / total_delivered_inc_wa * 100`
+- Raw stage SLA evaluations are computed via SQL views using warehouse/city timing rules + fallback logic.
+
+Reference docs:
 - `Specs/Enhancements-v3/Raw-Delivery-Stages-Calculation-Audit.md`
-- `Specs/Enhancements-v4/Requirements.md`
-- `Specs/Enhancements-v4/Design.md`
-- `Specs/Enhancements-v4/Tasks.md`
-- `Specs/Enhancements-v4/Runbook-Backfill-and-Uploads.md`
 - `Specs/Enhancements-v4/Metric-Dictionary.md`
 
-## Local Development
+---
+
+## 4) Data Flow (High Level)
+
+1. CSV uploaded in `/upload`
+2. Parsed client-side (`lib/csv/*`)
+3. Normalized (`lib/ingest/normalizers/*`)
+4. Posted to `/api/ingest`
+5. Stored in source tables (Supabase)
+6. Aggregated via SQL views/RPCs
+7. Served by route handlers (`app/api/*`)
+8. Rendered in pages/components
+
+---
+
+## 5) Repository Structure
+
+```text
+app/
+  api/                   # Next.js route handlers (data APIs, ingest, exports, settings)
+  dashboard/             # Dashboard page
+  raw-delivery-stages/   # Raw table UI
+  data-quality/          # Data quality monitor UI
+  upload/                # Upload + preview UI
+  settings/ schedule/ zone-performance/
+
+components/
+  charts/ tables/ widgets/ layout/ upload/
+
+lib/
+  csv/                   # Parsing + mapping helpers
+  ingest/                # Types, date parsing, dataset normalizers
+  middleware/            # Rate limiting/auth helpers
+  supabase/              # Admin client
+  utils/                 # Export + utility functions
+
+supabase/migrations/     # Database schema/view/function migrations
+Specs/                   # Requirements/design/tasks/audits by enhancement version
+scripts/tests/           # Lightweight node-based run + integration checks
+```
+
+---
+
+## 6) Tech Stack
+
+- Next.js (App Router), React, TypeScript
+- Supabase (Postgres + views/functions)
+- Chart.js / react-chartjs-2
+- PapaParse for CSV parsing
+- ESLint + TypeScript checks
+
+---
+
+## 7) Local Development
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open: `http://localhost:3000`
+Open `http://localhost:3000`.
 
-## Validation Commands (required order)
+---
+
+## 8) Validation Commands (required order)
 
 ```bash
 npm run build
@@ -74,3 +137,26 @@ npm run test:integration
 npm run type-check
 npm run lint
 ```
+
+---
+
+## 9) Migrations & Change Policy
+
+- Do not edit a central schema file directly.
+- Add every DB change as a **new migration** in `supabase/migrations/`.
+- Keep migrations focused and reversible where possible.
+
+---
+
+## 10) Specs Index
+
+- `Specs/Enhancements-v1/`
+- `Specs/Enhancements-v1.2/`
+- `Specs/Enhancements-v2/`
+- `Specs/Enhancements-v3/Raw-Delivery-Stages-Calculation-Audit.md`
+- `Specs/Enhancements-v4/Requirements.md`
+- `Specs/Enhancements-v4/Design.md`
+- `Specs/Enhancements-v4/Tasks.md`
+- `Specs/Enhancements-v4/Runbook-Backfill-and-Uploads.md`
+- `Specs/Enhancements-v4/Metric-Dictionary.md`
+
