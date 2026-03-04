@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 
 import { AppNav } from "@/components/layout/nav";
 import { DATASET_OPTIONS, WAREHOUSE_CODES } from "@/lib/csv/mappings";
+import { detectWarehouseFromRow } from "@/lib/csv/warehouse";
 import { parseCsvFile } from "@/lib/csv/parse";
 import { normalizeDatasetRows } from "@/lib/ingest/normalizers";
-import type { DatasetType, IngestError } from "@/lib/ingest/types";
+import type { CsvRow, DatasetType, IngestError } from "@/lib/ingest/types";
 
 const DEFAULTS_STORAGE_KEY = "parcel-admin-upload-defaults-v1";
 
@@ -177,7 +178,7 @@ export default function UploadPage() {
       const collectedErrors: IngestError[] = [];
 
       for (const config of fileConfigs) {
-        let csvRows: Record<string, string>[];
+        let csvRows: CsvRow[];
 
         try {
           csvRows = await parseCsvFile(config.file);
@@ -193,51 +194,73 @@ export default function UploadPage() {
 
         parsedCount += csvRows.length;
 
-        const { validRows, errors: normalizeErrors } = normalizeDatasetRows(
-          config.datasetType,
-          csvRows,
-        );
-
-        collectedErrors.push(
-          ...normalizeErrors.map((error) => ({
-            ...error,
-            message: `${config.file.name}: ${error.message}`,
-          })),
-        );
-
-        if (validRows.length === 0) {
-          continue;
-        }
-
-        const chunks = chunkArray(validRows, 500);
-
-        for (const chunk of chunks) {
-          const response = await fetch("/api/ingest", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              warehouseCode: config.warehouseCode,
-              datasetType: config.datasetType,
-              rows: chunk,
-            }),
-          });
-
-          const payload = (await response.json()) as {
-            insertedCount?: number;
-            ignoredCount?: number;
-            error?: string;
-          };
-
-          if (!response.ok) {
+        const rowsByWarehouse = new Map<string, CsvRow[]>();
+        csvRows.forEach((row, index) => {
+          const detection = detectWarehouseFromRow(row);
+          if (detection.sourceValue && !detection.warehouseCode) {
             collectedErrors.push({
-              row: 0,
-              message: `${config.file.name}: ${payload.error ?? "Ingestion failed."}`,
+              row: index + 2,
+              message: `${config.file.name}: Unknown warehouse value "${detection.sourceValue}".`,
             });
-            break;
+            return;
           }
 
-          insertedCount += payload.insertedCount ?? 0;
-          ignoredCount += payload.ignoredCount ?? 0;
+          const rowWarehouse = detection.warehouseCode ?? config.warehouseCode;
+          const bucket = rowsByWarehouse.get(rowWarehouse);
+          if (bucket) {
+            bucket.push(row);
+          } else {
+            rowsByWarehouse.set(rowWarehouse, [row]);
+          }
+        });
+
+        for (const [warehouseCode, warehouseRows] of rowsByWarehouse.entries()) {
+          const { validRows, errors: normalizeErrors } = normalizeDatasetRows(
+            config.datasetType,
+            warehouseRows,
+          );
+
+          collectedErrors.push(
+            ...normalizeErrors.map((error) => ({
+              ...error,
+              message: `${config.file.name}: ${error.message}`,
+            })),
+          );
+
+          if (validRows.length === 0) {
+            continue;
+          }
+
+          const chunks = chunkArray(validRows, 500);
+
+          for (const chunk of chunks) {
+            const response = await fetch("/api/ingest", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                warehouseCode,
+                datasetType: config.datasetType,
+                rows: chunk,
+              }),
+            });
+
+            const payload = (await response.json()) as {
+              insertedCount?: number;
+              ignoredCount?: number;
+              error?: string;
+            };
+
+            if (!response.ok) {
+              collectedErrors.push({
+                row: 0,
+                message: `${config.file.name}: ${payload.error ?? "Ingestion failed."}`,
+              });
+              break;
+            }
+
+            insertedCount += payload.insertedCount ?? 0;
+            ignoredCount += payload.ignoredCount ?? 0;
+          }
         }
       }
 
