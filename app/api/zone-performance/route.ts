@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { WAREHOUSE_CODES } from "@/lib/csv/mappings";
 import { withRateLimit } from "@/lib/middleware/rate-limit";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 
@@ -90,9 +91,37 @@ function isUnknown(value: string | null | undefined): boolean {
   return normalized === "" || normalized === "unknown" || normalized === "n/a" || normalized === "na" || normalized === "-";
 }
 
+const GENERIC_LOCATION_LABELS = new Set(
+  [...WAREHOUSE_CODES, "JADDAH", "SAUDI ARABIA", "KSA"].map((item) =>
+    item.trim().toUpperCase(),
+  ),
+);
+
+function normalizeNonUnknown(value: string | null | undefined): string | null {
+  if (isUnknown(value)) return null;
+  return (value ?? "").trim();
+}
+
+function isGenericLocationLabel(value: string): boolean {
+  const normalized = value.trim().toUpperCase();
+  return GENERIC_LOCATION_LABELS.has(normalized);
+}
+
 function getCityKey(row: CityPerformanceRow): string {
-  if (!isUnknown(row.city)) return row.city.trim();
-  if (!isUnknown(row.zone)) return row.zone.trim();
+  const city = normalizeNonUnknown(row.city);
+  const zone = normalizeNonUnknown(row.zone);
+  const area = normalizeNonUnknown(row.area);
+
+  const cityLooksGeneric = Boolean(
+    city &&
+      (isGenericLocationLabel(city) ||
+        (zone !== null && city.toUpperCase() === zone.toUpperCase())),
+  );
+
+  if (city && !cityLooksGeneric) return city;
+  if (area) return area;
+  if (city) return city;
+  if (zone) return zone;
   return "UNKNOWN";
 }
 
