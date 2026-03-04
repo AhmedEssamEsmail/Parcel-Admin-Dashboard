@@ -1,4 +1,4 @@
-# Parcel Admin Dashboard — Enhancements Spec (v7)
+# Parcel Admin Dashboard — Enhancements Spec (v8)
 Spec date: March 5, 2026
 
 ## 0) Scope summary
