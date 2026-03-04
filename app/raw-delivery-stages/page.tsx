@@ -17,22 +17,50 @@ function todayOffset(days: number): string {
 const COLUMNS = [
   "warehouse",
   "parcel_id",
-  "order_date",
   "order_placed",
+  "collecting",
+  "ready_for_preparing",
+  "prepare",
+  "ready_for_delivery",
+  "on_the_way_ts",
+  "delivered",
+  "address",
   "waiting_address",
+  "order_hour",
+  "order_date",
+  "collect_wait_time",
+  "processing",
+  "picker_phase",
+  "prepare_wait_time",
+  "wrapping_phase",
+  "delivery_wait_time",
+  "on_the_way_duration",
+  "time_to_deliver",
+  "expected_delivery_time",
   "cutoff_status",
+  "expected_time_processing",
+  "processing_time",
+  "actual_time_processing",
+  "processing_time_status",
+  "has_a_ticket",
+  "ticket_type",
+  "expected_time_preparing",
+  "actual_time_preparing",
+  "preparing_time_status",
   "delivery_kpi",
   "order_status",
+  "number_of_items",
+  "collector",
+  "wrapper",
   "ops_exceeded_30_mins",
   "zone",
   "city",
   "area",
-  "expected_delivery_time",
-  "delivered",
-  "time_to_deliver",
+  "expected_time_delivery",
+  "actual_time_delivery",
+  "delivery_time_status",
   "ops_time",
-  "has_a_ticket",
-  "ticket_type",
+  "iftar_time",
 ] as const;
 
 export default function RawDeliveryStagesPage() {
@@ -43,6 +71,12 @@ export default function RawDeliveryStagesPage() {
   const [parcelId, setParcelId] = useState("");
   const [wa, setWa] = useState("all");
   const [kpi, setKpi] = useState("all");
+  const [cutoff, setCutoff] = useState("all");
+  const [ticket, setTicket] = useState("all");
+  const [zone, setZone] = useState("");
+  const [city, setCity] = useState("");
+  const [area, setArea] = useState("");
+  const [opsIssue, setOpsIssue] = useState("all");
   const [rows, setRows] = useState<RawRow[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -67,6 +101,12 @@ export default function RawDeliveryStagesPage() {
       if (parcelId) params.set("parcel_id", parcelId);
       if (wa !== "all") params.set("wa", wa);
       if (kpi !== "all") params.set("kpi", kpi);
+      if (cutoff !== "all") params.set("cutoff", cutoff);
+      if (ticket !== "all") params.set("ticket", ticket);
+      if (zone.trim()) params.set("zone", zone.trim());
+      if (city.trim()) params.set("city", city.trim());
+      if (area.trim()) params.set("area", area.trim());
+      if (opsIssue !== "all") params.set("ops_issue", opsIssue);
 
       const response = await fetch(`/api/raw-delivery-stages?${params.toString()}`);
       const payload = (await response.json()) as {
@@ -153,6 +193,49 @@ export default function RawDeliveryStagesPage() {
             <option value="all">All</option>
             <option value="On Time">On Time</option>
             <option value="Late">Late</option>
+          </select>
+        </label>
+
+        <label>
+          Cutoff Status
+          <select value={cutoff} onChange={(event) => setCutoff(event.target.value)}>
+            <option value="all">All</option>
+            <option value="Normal">Normal</option>
+            <option value="After Cutoff Time">After Cutoff Time</option>
+            <option value="Before Shift">Before Shift</option>
+          </select>
+        </label>
+
+        <label>
+          Has Ticket
+          <select value={ticket} onChange={(event) => setTicket(event.target.value)}>
+            <option value="all">All</option>
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </select>
+        </label>
+
+        <label>
+          Zone
+          <input value={zone} onChange={(event) => setZone(event.target.value)} />
+        </label>
+
+        <label>
+          City
+          <input value={city} onChange={(event) => setCity(event.target.value)} />
+        </label>
+
+        <label>
+          Area
+          <input value={area} onChange={(event) => setArea(event.target.value)} />
+        </label>
+
+        <label>
+          Ops Issue
+          <select value={opsIssue} onChange={(event) => setOpsIssue(event.target.value)}>
+            <option value="all">All</option>
+            <option value="Ops Issue">Ops Issue</option>
+            <option value="Wait on Delivery Issue">Wait on Delivery Issue</option>
           </select>
         </label>
 
