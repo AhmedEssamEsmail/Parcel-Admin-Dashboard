@@ -36,6 +36,27 @@ type ShiftTemplate = {
   config: ShiftConfig[];
 };
 
+type CitySlaConfig = {
+  warehouse_id: string;
+  warehouse_code: string | null;
+  city: string;
+  city_normalized: string;
+  sla_minutes: number;
+  updated_at: string;
+};
+
+type SlaImportSummary = {
+  total: number;
+  valid: number;
+  invalid: number;
+  upserted: number;
+};
+
+type SlaImportError = {
+  row: number;
+  error: string;
+};
+
 type TabKey = "warehouses" | "shifts" | "holidays" | "templates";
 
 const DAYS = [
@@ -101,9 +122,16 @@ export default function SettingsPage() {
 
 function WarehousesTab() {
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [configs, setConfigs] = useState<CitySlaConfig[]>([]);
+  const [selectedWarehouse, setSelectedWarehouse] = useState<string>("ALL");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [savingId, setSavingId] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+  const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [importSummary, setImportSummary] = useState<SlaImportSummary | null>(null);
+  const [importErrors, setImportErrors] = useState<SlaImportError[]>([]);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
 
   const fetchWarehouses = async () => {
     setLoading(true);
@@ -126,86 +154,330 @@ function WarehousesTab() {
     }
   };
 
+  const fetchCityConfigs = async (warehouseCode: string) => {
+    setError(null);
+    setStatus(null);
+
+    try {
+      const params = new URLSearchParams();
+      if (warehouseCode && warehouseCode !== "ALL") {
+        params.set("warehouse_code", warehouseCode);
+      }
+
+      const response = await fetch(`/api/settings/sla?${params.toString()}`);
+      const payload = (await response.json()) as { configs?: CitySlaConfig[]; error?: string };
+
+      if (!response.ok) {
+        setError(payload.error ?? "Failed to load city SLA configs.");
+        return;
+      }
+
+      setConfigs(payload.configs ?? []);
+    } catch {
+      setError("Network error while loading city SLA configs.");
+    }
+  };
+
   useEffect(() => {
     void fetchWarehouses();
   }, []);
 
-  const updateSla = async (warehouseId: string, slaMinutes: number) => {
-    setSavingId(warehouseId);
+  useEffect(() => {
+    if (!loading) {
+      void fetchCityConfigs(selectedWarehouse);
+    }
+  }, [selectedWarehouse, loading]);
+
+  const updateSlaRow = async (index: number) => {
+    const row = configs[index];
+    if (!row) return;
+
+    const warehouseCode = row.warehouse_code?.trim().toUpperCase();
+    const city = row.city.trim();
+    const slaMinutes = row.sla_minutes;
+
+    if (!warehouseCode) {
+      setError("warehouse_code is required.");
+      return;
+    }
+    if (!city) {
+      setError("city is required.");
+      return;
+    }
+    if (!Number.isInteger(slaMinutes) || slaMinutes < 1 || slaMinutes > 1440) {
+      setError("sla_minutes must be an integer between 1 and 1440.");
+      return;
+    }
+
+    setSavingKey(`${warehouseCode}:${row.city_normalized || row.city}`);
     setError(null);
+    setStatus(null);
 
     try {
-      const response = await fetch("/api/settings", {
-        method: "PUT",
+      const response = await fetch("/api/settings/sla", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ warehouse_id: warehouseId, sla_minutes: slaMinutes }),
+        body: JSON.stringify({
+          configs: [
+            {
+              warehouse_code: warehouseCode,
+              city,
+              sla_minutes: slaMinutes,
+            },
+          ],
+        }),
       });
       const payload = (await response.json()) as { error?: string };
 
       if (!response.ok) {
-        setError(payload.error ?? "Failed to update SLA.");
+        setError(payload.error ?? "Failed to save city SLA.");
+        return;
+      }
+
+      setStatus(`Saved ${warehouseCode} / ${city}.`);
+      await fetchCityConfigs(selectedWarehouse);
+    } catch {
+      setError("Network error while saving city SLA.");
+    } finally {
+      setSavingKey(null);
+    }
+  };
+
+  const addRow = () => {
+    const fallbackCode =
+      selectedWarehouse === "ALL"
+        ? (warehouses[0]?.code ?? null)
+        : selectedWarehouse;
+
+    setConfigs((prev) => [
+      {
+        warehouse_id: "",
+        warehouse_code: fallbackCode,
+        city: "",
+        city_normalized: "",
+        sla_minutes: 240,
+        updated_at: new Date().toISOString(),
+      },
+      ...prev,
+    ]);
+  };
+
+  const updateRow = (index: number, next: Partial<CitySlaConfig>) => {
+    setConfigs((prev) => prev.map((row, i) => (i === index ? { ...row, ...next } : row)));
+  };
+
+  const exportCsv = () => {
+    window.location.href = "/api/settings/sla/export";
+  };
+
+  const importCsv = async () => {
+    if (!importFile) {
+      setError("Please choose a CSV file first.");
+      return;
+    }
+
+    setImporting(true);
+    setError(null);
+    setStatus(null);
+    setImportSummary(null);
+    setImportErrors([]);
+
+    try {
+      const csv = await importFile.text();
+      const response = await fetch("/api/settings/sla/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ csv }),
+      });
+
+      const payload = (await response.json()) as {
+        error?: string;
+        summary?: SlaImportSummary;
+        errors?: SlaImportError[];
+      };
+
+      if (!response.ok) {
+        setError(payload.error ?? "Import failed.");
+      }
+
+      setImportSummary(payload.summary ?? null);
+      setImportErrors(payload.errors ?? []);
+
+      if (response.ok) {
+        setStatus("SLA import completed.");
+        await fetchCityConfigs(selectedWarehouse);
       }
     } catch {
-      setError("Network error while updating SLA.");
+      setError("Network error while importing CSV.");
     } finally {
-      setSavingId(null);
+      setImporting(false);
     }
   };
 
   if (loading) {
-    return <section className="card">Loading warehouses...</section>;
+    return <section className="card">Loading settings...</section>;
   }
 
   return (
     <section className="card">
-      <h2>Warehouse SLA Settings</h2>
-      <p className="muted">Adjust SLA minutes. Changes apply to new uploads.</p>
+      <h2>City SLA Settings</h2>
+      <p className="muted">Manage city-level SLA overrides. Warehouse SLA remains fallback.</p>
 
       {error && <p className="error">{error}</p>}
+      {status && <p className="success">{status}</p>}
 
+      <div className="grid two">
+        <label>
+          Warehouse Filter
+          <select value={selectedWarehouse} onChange={(event) => setSelectedWarehouse(event.target.value)}>
+            <option value="ALL">All Warehouses</option>
+            {warehouses.map((warehouse) => (
+              <option key={warehouse.code} value={warehouse.code}>
+                {warehouse.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="btn-row" style={{ alignItems: "end" }}>
+          <button className="btn btn-ghost" type="button" onClick={addRow}>
+            Add City SLA Row
+          </button>
+        </div>
+      </div>
+
+      <div className="table-scroll" style={{ marginTop: 12 }}>
+        <table className="settings-table">
+          <thead>
+            <tr>
+              <th>Warehouse</th>
+              <th>City</th>
+              <th>SLA (minutes)</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {configs.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="empty-cell">
+                  No city SLA overrides found for this filter.
+                </td>
+              </tr>
+            ) : (
+              configs.map((row, index) => {
+                const rowKey = `${row.warehouse_code ?? "unknown"}:${row.city_normalized || row.city || index}`;
+                return (
+                  <tr key={rowKey}>
+                    <td>
+                      <select
+                        value={row.warehouse_code ?? ""}
+                        onChange={(event) => updateRow(index, { warehouse_code: event.target.value })}
+                        disabled={selectedWarehouse !== "ALL"}
+                      >
+                        <option value="">Select</option>
+                        {warehouses.map((warehouse) => (
+                          <option key={warehouse.code} value={warehouse.code}>
+                            {warehouse.code}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
+                      <input
+                        type="text"
+                        value={row.city}
+                        onChange={(event) => updateRow(index, { city: event.target.value })}
+                        placeholder="City"
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="number"
+                        min={1}
+                        max={1440}
+                        value={row.sla_minutes}
+                        onChange={(event) => {
+                          const value = Number.parseInt(event.target.value, 10) || 0;
+                          updateRow(index, { sla_minutes: value });
+                        }}
+                      />
+                    </td>
+                    <td>
+                      <button
+                        className="btn btn-ghost"
+                        type="button"
+                        onClick={() => void updateSlaRow(index)}
+                        disabled={savingKey === rowKey}
+                      >
+                        {savingKey === rowKey ? "Saving..." : "Save"}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <h3 style={{ marginTop: 20 }}>Warehouse SLA Fallback</h3>
       <div className="table-scroll">
         <table className="settings-table">
           <thead>
             <tr>
               <th>Warehouse</th>
-              <th>SLA (minutes)</th>
+              <th>Fallback SLA (minutes)</th>
               <th>Default Shift Start</th>
               <th>Default Shift End</th>
-              <th>Timezone</th>
             </tr>
           </thead>
           <tbody>
-            {warehouses.map((warehouse) => (
-              <tr key={warehouse.id}>
-                <td>{warehouse.name}</td>
-                <td>
-                  <input
-                    type="number"
-                    min={1}
-                    max={1440}
-                    value={warehouse.sla_minutes}
-                    onChange={(event) => {
-                      const value = Number.parseInt(event.target.value, 10) || 0;
-                      setWarehouses((prev) =>
-                        prev.map((item) =>
-                          item.id === warehouse.id
-                            ? { ...item, sla_minutes: value }
-                            : item,
-                        ),
-                      );
-                    }}
-                    onBlur={() => void updateSla(warehouse.id, warehouse.sla_minutes)}
-                    disabled={savingId === warehouse.id}
-                  />
-                </td>
-                <td>{warehouse.default_shift_start}</td>
-                <td>{warehouse.default_shift_end}</td>
-                <td>{warehouse.tz}</td>
-              </tr>
-            ))}
+            {warehouses
+              .filter((warehouse) => selectedWarehouse === "ALL" || warehouse.code === selectedWarehouse)
+              .map((warehouse) => (
+                <tr key={warehouse.id}>
+                  <td>{warehouse.name}</td>
+                  <td>{warehouse.sla_minutes}</td>
+                  <td>{warehouse.default_shift_start}</td>
+                  <td>{warehouse.default_shift_end}</td>
+                </tr>
+              ))}
           </tbody>
         </table>
       </div>
+
+      <h3 style={{ marginTop: 20 }}>Import / Export</h3>
+      <div className="btn-row">
+        <button className="btn btn-ghost" type="button" onClick={exportCsv}>
+          Export CSV
+        </button>
+        <input
+          type="file"
+          accept=".csv,text/csv"
+          onChange={(event) => setImportFile(event.target.files?.[0] ?? null)}
+        />
+        <button className="btn" type="button" onClick={() => void importCsv()} disabled={importing}>
+          {importing ? "Importing..." : "Import CSV"}
+        </button>
+      </div>
+
+      {importSummary && (
+        <div style={{ marginTop: 10 }}>
+          <p className="success">
+            Import summary — total: {importSummary.total}, valid: {importSummary.valid}, invalid: {importSummary.invalid}, upserted: {importSummary.upserted}
+          </p>
+        </div>
+      )}
+
+      {importErrors.length > 0 && (
+        <div style={{ marginTop: 10 }}>
+          <p className="error">Import errors:</p>
+          <ul>
+            {importErrors.slice(0, 10).map((item) => (
+              <li key={`${item.row}-${item.error}`}>Row {item.row}: {item.error}</li>
+            ))}
+          </ul>
+        </div>
+      )}
     </section>
   );
 }

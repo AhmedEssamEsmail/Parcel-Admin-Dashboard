@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server.js";
 
-import { withRateLimit } from "@/lib/middleware/rate-limit";
-import { getSupabaseAdminClient } from "@/lib/supabase/server";
+import { withRateLimit } from "../../../lib/middleware/rate-limit";
+import { getSupabaseAdminClient } from "../../../lib/supabase/server";
 
 type CompareRequest = {
   warehouse: string;
@@ -59,7 +59,30 @@ type PeriodStats = {
   wa_count: number;
 };
 
-async function fetchPeriodData(
+type ParcelKpiRow = {
+  parcel_id: string | number;
+  is_on_time: boolean | null;
+  delivered_ts: string | null;
+  order_ts_utc: string | null;
+  waiting_address: boolean | null;
+};
+
+export function getDeliveryMinutes(row: Pick<ParcelKpiRow, "delivered_ts" | "order_ts_utc">): number | null {
+  if (!row.delivered_ts || !row.order_ts_utc) {
+    return null;
+  }
+
+  const deliveredMs = Date.parse(row.delivered_ts);
+  const orderMs = Date.parse(row.order_ts_utc);
+
+  if (!Number.isFinite(deliveredMs) || !Number.isFinite(orderMs) || deliveredMs <= orderMs) {
+    return null;
+  }
+
+  return (deliveredMs - orderMs) / 60000;
+}
+
+export async function fetchPeriodData(
   supabase: ReturnType<typeof getSupabaseAdminClient>,
   warehouse: string,
   from: string,
@@ -67,24 +90,21 @@ async function fetchPeriodData(
 ): Promise<PeriodStats> {
   const { data, error } = await supabase
     .from("v_parcel_kpi")
-    .select("parcel_id, is_on_time, delivered_ts, order_ts, waiting_address")
+    .select("parcel_id, is_on_time, delivered_ts, order_ts_utc, waiting_address")
     .eq("warehouse_code", warehouse)
     .gte("created_date_local", from)
     .lte("created_date_local", to);
 
   if (error) throw error;
 
-  const rows = data ?? [];
+  const rows = (data ?? []) as ParcelKpiRow[];
   const delivered = rows.filter((row) => row.delivered_ts !== null);
   const onTime = delivered.filter((row) => row.is_on_time === true);
   const waOrders = rows.filter((row) => row.waiting_address === true);
 
   const deliveryTimes = delivered
-    .filter((row) => row.delivered_ts > row.order_ts)
-    .map((row) => {
-      const ms = new Date(row.delivered_ts).getTime() - new Date(row.order_ts).getTime();
-      return ms / 60000;
-    });
+    .map((row) => getDeliveryMinutes(row))
+    .filter((value): value is number => value !== null);
 
   const avgDeliveryTime =
     deliveryTimes.length > 0

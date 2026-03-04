@@ -33,7 +33,7 @@ a {
 }
 
 .page-wrap {
-  width: min(1280px, 96vw);
+  width: min(1560px, 98vw);
   margin: 24px auto 32px;
   display: grid;
   gap: 16px;
