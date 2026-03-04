@@ -30,6 +30,7 @@ export function normalizeParcelLogRows(rows: CsvRow[]): {
     const parcelId = parseNullableNumber(getField(row, ["parcel id", "parcel_id"]));
     const statusTs = parseWarehouseDateToIso(
       getField(row, ["parcel date", "status_ts", "status date"]),
+      "warehouse_local_gmt_plus_3",
     );
     const parcelStatus = parseNullableString(
       getField(row, ["parcelstatus_name", "parcel_status", "status"]),
