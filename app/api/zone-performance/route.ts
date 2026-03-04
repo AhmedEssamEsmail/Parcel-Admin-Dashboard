@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withRateLimit } from "@/lib/middleware/rate-limit";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 
-type ZonePerformanceRow = {
+type CityPerformanceRow = {
   warehouse_code: string;
   zone: string;
   city: string;
@@ -17,8 +17,8 @@ type ZonePerformanceRow = {
   volume_status: string;
 };
 
-type ZoneAggregate = {
-  zone: string;
+type CityAggregate = {
+  city: string;
   total_orders: number;
   delivered_count: number;
   on_time_count: number;
@@ -45,7 +45,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
   const supabase = getSupabaseAdminClient();
 
   let query = supabase
-    .from("v_zone_performance")
+    .from("v_city_performance")
     .select("*")
     .eq("warehouse_code", warehouse);
 
@@ -58,36 +58,49 @@ export const GET = withRateLimit(async (request: NextRequest) => {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const aggregated = aggregateByZone((data ?? []) as ZonePerformanceRow[]);
+  const allRows = (data ?? []) as CityPerformanceRow[];
+  const aggregated = aggregateByCity(allRows);
   const sorted = [...aggregated].sort((a, b) => (b.otd_pct || 0) - (a.otd_pct || 0));
 
   let result;
   switch (view) {
     case "top":
-      result = { zones: sorted.slice(0, 5) };
+      result = { cities: sorted.slice(0, 5) };
       break;
     case "bottom":
-      result = { zones: sorted.slice(-5).reverse() };
+      result = { cities: sorted.slice(-5).reverse() };
       break;
     case "all":
-      result = { zones: sorted, all: data ?? [] };
+      result = { cities: sorted, all: allRows };
       break;
     default:
       result = {
         top: sorted.slice(0, 5),
-        bottom: sorted.slice(-5).reverse().filter((zone) => zone.otd_pct !== null),
-        all: data ?? [],
+        bottom: sorted.slice(-5).reverse().filter((city) => city.otd_pct !== null),
+        all: allRows,
       };
   }
 
   return NextResponse.json(result);
 });
 
-function aggregateByZone(rows: ZonePerformanceRow[]): ZoneAggregate[] {
-  const zoneMap = new Map<
+function isUnknown(value: string | null | undefined): boolean {
+  if (!value) return true;
+  const normalized = value.trim().toLowerCase();
+  return normalized === "" || normalized === "unknown" || normalized === "n/a" || normalized === "na" || normalized === "-";
+}
+
+function getCityKey(row: CityPerformanceRow): string {
+  if (!isUnknown(row.city)) return row.city.trim();
+  if (!isUnknown(row.zone)) return row.zone.trim();
+  return "UNKNOWN";
+}
+
+function aggregateByCity(rows: CityPerformanceRow[]): CityAggregate[] {
+  const cityMap = new Map<
     string,
     {
-      zone: string;
+      city: string;
       total_orders: number;
       delivered_count: number;
       on_time_count: number;
@@ -97,9 +110,9 @@ function aggregateByZone(rows: ZonePerformanceRow[]): ZoneAggregate[] {
   >();
 
   for (const row of rows) {
-    const key = row.zone;
-    const existing = zoneMap.get(key) ?? {
-      zone: row.zone,
+    const key = getCityKey(row);
+    const existing = cityMap.get(key) ?? {
+      city: key,
       total_orders: 0,
       delivered_count: 0,
       on_time_count: 0,
@@ -110,28 +123,28 @@ function aggregateByZone(rows: ZonePerformanceRow[]): ZoneAggregate[] {
     existing.total_orders += row.total_orders;
     existing.delivered_count += row.delivered_count;
     existing.on_time_count += row.on_time_count;
-    if (row.avg_delivery_minutes) {
+    if (row.avg_delivery_minutes !== null && row.avg_delivery_minutes !== undefined) {
       existing.total_delivery_minutes += row.avg_delivery_minutes * row.delivered_count;
       existing.delivery_count += row.delivered_count;
     }
 
-    zoneMap.set(key, existing);
+    cityMap.set(key, existing);
   }
 
-  return Array.from(zoneMap.values()).map((zone) => ({
-    zone: zone.zone,
-    total_orders: zone.total_orders,
-    delivered_count: zone.delivered_count,
-    on_time_count: zone.on_time_count,
-    late_count: zone.delivered_count - zone.on_time_count,
+  return Array.from(cityMap.values()).map((city) => ({
+    city: city.city,
+    total_orders: city.total_orders,
+    delivered_count: city.delivered_count,
+    on_time_count: city.on_time_count,
+    late_count: city.delivered_count - city.on_time_count,
     otd_pct:
-      zone.delivered_count > 0
-        ? Math.round((zone.on_time_count / zone.delivered_count) * 10000) / 100
+      city.delivered_count > 0
+        ? Math.round((city.on_time_count / city.delivered_count) * 10000) / 100
         : null,
     avg_delivery_minutes:
-      zone.delivery_count > 0
-        ? Math.round(zone.total_delivery_minutes / zone.delivery_count)
+      city.delivery_count > 0
+        ? Math.round(city.total_delivery_minutes / city.delivery_count)
         : null,
-    volume_status: zone.total_orders < 5 ? "LOW_VOLUME" : "NORMAL",
+    volume_status: city.total_orders < 5 ? "LOW_VOLUME" : "NORMAL",
   }));
 }

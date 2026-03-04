@@ -35,12 +35,23 @@ type WowMomResponse = {
   groups?: WarehouseGroup[];
 };
 
+type CollapsedSummary = {
+  total_placed: number | null;
+  total_delivered: number | null;
+  on_time: number | null;
+  late: number | null;
+  otd_pct: number | null;
+  avg_delivery_minutes: number | null;
+};
+
 type WowMomTableProps = {
   warehouse: string;
+  from: string;
+  to: string;
   initialData?: WowMomResponse | null;
 };
 
-export function WowMomTable({ warehouse, initialData }: WowMomTableProps) {
+export function WowMomTable({ warehouse, from, to, initialData }: WowMomTableProps) {
   const [viewType, setViewType] = useState<"week" | "month">("week");
   const [data, setData] = useState<WowMomResponse | null>(initialData ?? null);
   const [loading, setLoading] = useState(false);
@@ -64,14 +75,25 @@ export function WowMomTable({ warehouse, initialData }: WowMomTableProps) {
     const load = async () => {
       if (!warehouse) return;
       setLoading(true);
-      const res = await fetch(`/api/wow-summary?warehouse=${warehouse}&periodType=${viewType}&limit=6`);
+
+      const params = new URLSearchParams({
+        warehouse,
+        periodType: viewType,
+        limit: "6",
+        from,
+        to,
+      });
+
+      const res = await fetch(`/api/wow-summary?${params.toString()}`);
       const json = (await res.json()) as WowMomResponse;
-      setData(json);
+      if (res.ok) {
+        setData(json);
+      }
       setLoading(false);
     };
 
     void load();
-  }, [warehouse, viewType]);
+  }, [warehouse, viewType, from, to]);
 
   const isGroupedByWarehouse = useMemo(
     () => warehouse === "ALL" && (data?.groups?.length ?? 0) > 0,
@@ -88,16 +110,10 @@ export function WowMomTable({ warehouse, initialData }: WowMomTableProps) {
           <span className="including-wa">(Including WA Orders)</span>
         </h3>
         <div className="toggle-switch">
-          <button
-            className={viewType === "week" ? "active" : ""}
-            onClick={() => setViewType("week")}
-          >
+          <button className={viewType === "week" ? "active" : ""} onClick={() => setViewType("week")}>
             Weekly View
           </button>
-          <button
-            className={viewType === "month" ? "active" : ""}
-            onClick={() => setViewType("month")}
-          >
+          <button className={viewType === "month" ? "active" : ""} onClick={() => setViewType("month")}>
             Monthly View
           </button>
         </div>
@@ -124,6 +140,7 @@ export function WowMomTable({ warehouse, initialData }: WowMomTableProps) {
               {isGroupedByWarehouse
                 ? (data.groups ?? []).map((group) => {
                     const isCollapsed = collapsedGroups[group.warehouse_code] ?? false;
+                    const collapsedSummary = summarizePeriods(group.periods);
 
                     return (
                       <FragmentGroup key={group.warehouse_code}>
@@ -139,12 +156,27 @@ export function WowMomTable({ warehouse, initialData }: WowMomTableProps) {
                                 }))
                               }
                             >
-                              <span>{isCollapsed ? "▶" : "▼"}</span>
+                              <span className="warehouse-collapse-icon">{isCollapsed ? "+" : "-"}</span>
                               <strong>{group.warehouse_name}</strong>
                               <span className="warehouse-group-code">({group.warehouse_code})</span>
                             </button>
                           </td>
                         </tr>
+
+                        {isCollapsed && (
+                          <tr className="warehouse-collapsed-summary-row">
+                            <td className="period-label">Selected Range Total</td>
+                            <td>{formatCount(collapsedSummary.total_placed)}</td>
+                            <td>{formatCount(collapsedSummary.total_delivered)}</td>
+                            <td className="on-time">{formatCount(collapsedSummary.on_time)}</td>
+                            <td className="late">{formatCount(collapsedSummary.late)}</td>
+                            <td className={getOtdClass(collapsedSummary.otd_pct)}>
+                              {formatPercent(collapsedSummary.otd_pct)}
+                            </td>
+                            <td>{formatTime(collapsedSummary.avg_delivery_minutes)}</td>
+                            <td>-</td>
+                          </tr>
+                        )}
 
                         {!isCollapsed &&
                           group.periods.map((period, idx) => (
@@ -204,13 +236,14 @@ export function WowMomTable({ warehouse, initialData }: WowMomTableProps) {
           </table>
         </div>
       )}
+
       <div className="btn-row">
         <button
           className="btn btn-ghost"
           type="button"
           onClick={() => {
             setExporting(true);
-            window.location.href = `/api/export/csv?type=wow&warehouse=${warehouse}&periodType=${viewType}`;
+            window.location.href = `/api/export/csv?type=wow&warehouse=${warehouse}&periodType=${viewType}&from=${from}&to=${to}`;
             setTimeout(() => setExporting(false), 1500);
           }}
           disabled={exporting}
@@ -227,7 +260,7 @@ function FragmentGroup({ children }: { children: ReactNode }) {
 }
 
 function getOtdClass(otd: number | null): string {
-  if (!otd) return "";
+  if (otd === null || otd === undefined) return "";
   if (otd >= 90) return "excellent";
   if (otd >= 80) return "good";
   return "needs-attention";
@@ -239,8 +272,53 @@ function getChangeClass(changes: PeriodChange | null): string {
 }
 
 function formatTime(minutes: number | null): string {
-  if (!minutes) return "-";
+  if (minutes === null || minutes === undefined || Number.isNaN(minutes)) return "-";
   const hours = Math.floor(minutes / 60);
   const mins = Math.round(minutes % 60);
   return `${hours}h ${mins}m`;
+}
+
+function formatPercent(value: number | null): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return "-";
+  return `${value.toFixed(1)}%`;
+}
+
+function formatCount(value: number | null): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return "-";
+  return String(Math.round(value));
+}
+
+function summarizePeriods(periods: PeriodRow[]): CollapsedSummary {
+  if (periods.length === 0) {
+    return {
+      total_placed: null,
+      total_delivered: null,
+      on_time: null,
+      late: null,
+      otd_pct: null,
+      avg_delivery_minutes: null,
+    };
+  }
+
+  const otdValues = periods
+    .map((period) => period.otd_pct)
+    .filter((value): value is number => value !== null && value !== undefined);
+  const avgTimeValues = periods
+    .map((period) => period.avg_delivery_minutes)
+    .filter((value): value is number => value !== null && value !== undefined);
+
+  return {
+    total_placed: periods.reduce((sum, period) => sum + period.total_placed, 0),
+    total_delivered: periods.reduce((sum, period) => sum + period.total_delivered, 0),
+    on_time: periods.reduce((sum, period) => sum + period.on_time, 0),
+    late: periods.reduce((sum, period) => sum + period.late, 0),
+    otd_pct:
+      otdValues.length > 0
+        ? otdValues.reduce((sum, value) => sum + value, 0) / otdValues.length
+        : null,
+    avg_delivery_minutes:
+      avgTimeValues.length > 0
+        ? avgTimeValues.reduce((sum, value) => sum + value, 0) / avgTimeValues.length
+        : null,
+  };
 }

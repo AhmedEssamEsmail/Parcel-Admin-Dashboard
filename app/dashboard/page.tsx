@@ -40,6 +40,7 @@ type AvgDeliveryResponse = {
 
 type IngestHealthResponse = {
   summary: { total_runs: number; warning_runs: number; failed_runs: number };
+  warning?: string;
 };
 
 const AUTO_REFRESH_INTERVAL = 2 * 60 * 60 * 1000;
@@ -104,6 +105,7 @@ export default function DashboardPage() {
       const response = await fetch(`/api/ingest-health?${params.toString()}`);
       const payload = (await response.json()) as IngestHealthResponse;
       if (response.ok) setIngestHealth(payload);
+      else setIngestHealth({ summary: { total_runs: 0, warning_runs: 0, failed_runs: 0 } });
     } finally {
       setIngestLoading(false);
     }
@@ -146,7 +148,16 @@ export default function DashboardPage() {
       <AppNav />
 
       <div className="refresh-bar">
-        <span>Last updated: {formatElapsed(secondsAgo)} ago</span>
+        <div className="refresh-info">
+          <span>Last updated: {formatElapsed(secondsAgo)} ago</span>
+          <span
+            className="refresh-help-tooltip"
+            title="Data refreshes automatically every 2 hours."
+            aria-label="Data refreshes automatically every 2 hours."
+          >
+            ⓘ
+          </span>
+        </div>
         <button onClick={() => void load()} disabled={loading}>
           🔄 Refresh Now
         </button>
@@ -214,7 +225,7 @@ export default function DashboardPage() {
       )}
 
       <section className="card">
-        <WowMomTable warehouse={warehouse} />
+        <WowMomTable warehouse={warehouse} from={from} to={to} />
       </section>
 
       <section className="card">
@@ -238,7 +249,10 @@ export default function DashboardPage() {
 
       <section className="card">
         <h3>On-Time Delivery - Including Waiting Address Orders</h3>
-        <p className="subtitle" title="OTD% = On-Time Delivered / Total Delivered. WA Delivered % = WA Delivered / Total Delivered.">
+        <p
+          className="subtitle"
+          title="OTD% = On-Time Delivered / Total Delivered. WA Delivered % = WA Delivered / Total Delivered."
+        >
           Total WA Orders: {data?.wa_count ?? 0}
         </p>
         <DodSummaryTable rows={data?.rows_inc_wa ?? []} />

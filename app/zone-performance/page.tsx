@@ -5,8 +5,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppNav } from "@/components/layout/nav";
 import { WAREHOUSE_CODES } from "@/lib/csv/mappings";
 
-type ZoneRow = {
-  zone: string;
+type CityRow = {
+  city: string;
   total_orders: number;
   delivered_count: number;
   otd_pct: number | null;
@@ -14,33 +14,38 @@ type ZoneRow = {
   volume_status: string;
 };
 
-type ZoneDetailRow = ZoneRow & {
+type CityDetailRow = {
   city: string;
+  zone: string;
   area: string | null;
+  total_orders: number;
+  delivered_count: number;
   on_time_count: number;
+  otd_pct: number | null;
+  avg_delivery_minutes: number | null;
+  volume_status: string;
 };
 
-type ZoneResponse = {
-  top?: ZoneRow[];
-  bottom?: ZoneRow[];
-  all?: ZoneDetailRow[];
+type CityResponse = {
+  top?: CityRow[];
+  bottom?: CityRow[];
+  all?: CityDetailRow[];
 };
 
 export default function ZonePerformancePage() {
   const [warehouse, setWarehouse] = useState<string>("KUWAIT");
   const [from, setFrom] = useState<string>(dateOffset(-30));
   const [to, setTo] = useState<string>(dateOffset(0));
-  const [data, setData] = useState<ZoneResponse | null>(null);
+  const [data, setData] = useState<CityResponse | null>(null);
   const [loading, setLoading] = useState(false);
-  const [selectedZone, setSelectedZone] = useState<string | null>(null);
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const params = new URLSearchParams({ warehouse, from, to, view: "all" });
+    const params = new URLSearchParams({ warehouse, from, to });
     const res = await fetch(`/api/zone-performance?${params}`);
-    const json = (await res.json()) as ZoneResponse;
+    const json = (await res.json()) as CityResponse;
     setData(json);
     setLoading(false);
   }, [warehouse, from, to]);
@@ -65,33 +70,27 @@ export default function ZonePerformancePage() {
 
   const drilldown = useMemo(() => {
     const rows = data?.all ?? [];
-    const zoneSummary = aggregateZones(rows, (row) => row.zone);
-    const zoneList = zoneSummary.sort((a, b) => (b.otd_pct ?? 0) - (a.otd_pct ?? 0));
-
-    const selectedZoneRows = selectedZone
-      ? rows.filter((row) => row.zone === selectedZone)
-      : [];
-    const citySummary = aggregateZones(selectedZoneRows, (row) => row.city);
+    const citySummary = aggregateRows(rows, (row) => getCityValue(row));
 
     const selectedCityRows = selectedCity
-      ? selectedZoneRows.filter((row) => row.city === selectedCity)
+      ? rows.filter((row) => getCityValue(row) === selectedCity)
       : [];
-    const areaSummary = aggregateZones(selectedCityRows, (row) => row.area ?? "Unknown");
+
+    const areaSummary = aggregateRows(selectedCityRows, (row) => row.area ?? "Unknown");
 
     return {
-      zones: zoneList,
       cities: citySummary,
       areas: areaSummary,
     };
-  }, [data, selectedZone, selectedCity]);
+  }, [data, selectedCity]);
 
   return (
     <main className="page-wrap">
       <AppNav />
 
       <header className="page-header">
-        <h1>Zone Performance</h1>
-        <p className="muted">Analyze delivery performance by geographic zone.</p>
+        <h1>City Performance</h1>
+        <p className="muted">Analyze delivery performance by city.</p>
       </header>
 
       <section className="card grid three">
@@ -120,12 +119,12 @@ export default function ZonePerformancePage() {
       ) : (
         <>
           <section className="card">
-            <h3>🏆 Top Performing Zones</h3>
+            <h3>Top Performing Cities</h3>
             <div className="table-scroll">
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Zone</th>
+                    <th>City</th>
                     <th>Orders</th>
                     <th>Delivered</th>
                     <th>On-Time %</th>
@@ -133,25 +132,24 @@ export default function ZonePerformancePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data?.top?.map((zone, index) => (
+                  {data?.top?.map((city, index) => (
                     <tr
-                      key={zone.zone}
+                      key={city.city}
                       className="good"
                       onClick={() => {
-                        setSelectedZone(zone.zone);
-                        setSelectedCity(null);
+                        setSelectedCity(city.city);
                       }}
                     >
                       <td>
-                        {index === 0 && "🥇 "}
-                        {index === 1 && "🥈 "}
-                        {index === 2 && "🥉 "}
-                        {zone.zone}
+                        {index === 0 && "#1 "}
+                        {index === 1 && "#2 "}
+                        {index === 2 && "#3 "}
+                        {city.city}
                       </td>
-                      <td>{zone.total_orders}</td>
-                      <td>{zone.delivered_count}</td>
-                      <td>{zone.otd_pct?.toFixed(1) ?? "-"}%</td>
-                      <td>{formatTime(zone.avg_delivery_minutes)}</td>
+                      <td>{city.total_orders}</td>
+                      <td>{city.delivered_count}</td>
+                      <td>{city.otd_pct?.toFixed(1) ?? "-"}%</td>
+                      <td>{formatTime(city.avg_delivery_minutes)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -160,12 +158,12 @@ export default function ZonePerformancePage() {
           </section>
 
           <section className="card">
-            <h3>⚠️ Needs Attention</h3>
+            <h3>Cities Needing Attention</h3>
             <div className="table-scroll">
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Zone</th>
+                    <th>City</th>
                     <th>Orders</th>
                     <th>Delivered</th>
                     <th>On-Time %</th>
@@ -174,25 +172,24 @@ export default function ZonePerformancePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data?.bottom?.map((zone) => (
+                  {data?.bottom?.map((city) => (
                     <tr
-                      key={zone.zone}
+                      key={city.city}
                       className="warning"
                       onClick={() => {
-                        setSelectedZone(zone.zone);
-                        setSelectedCity(null);
+                        setSelectedCity(city.city);
                       }}
                     >
-                      <td>{zone.zone}</td>
-                      <td>{zone.total_orders}</td>
-                      <td>{zone.delivered_count}</td>
-                      <td className="low">{zone.otd_pct?.toFixed(1) ?? "-"}%</td>
-                      <td>{formatTime(zone.avg_delivery_minutes)}</td>
+                      <td>{city.city}</td>
+                      <td>{city.total_orders}</td>
+                      <td>{city.delivered_count}</td>
+                      <td className="low">{city.otd_pct?.toFixed(1) ?? "-"}%</td>
+                      <td>{formatTime(city.avg_delivery_minutes)}</td>
                       <td>
-                        {zone.volume_status === "LOW_VOLUME" && (
+                        {city.volume_status === "LOW_VOLUME" && (
                           <span className="badge info">Low Volume</span>
                         )}
-                        {(zone.otd_pct ?? 0) < 80 && (
+                        {(city.otd_pct ?? 0) < 80 && (
                           <span className="badge warning">Below Target</span>
                         )}
                       </td>
@@ -204,45 +201,30 @@ export default function ZonePerformancePage() {
           </section>
 
           <section className="card">
-            <h3>Zone Drill-Down</h3>
+            <h3>City Drill-Down</h3>
             <div className="breadcrumbs">
               <button
-                className={selectedZone ? "btn-ghost" : "btn"}
+                className={selectedCity ? "btn-ghost" : "btn"}
                 type="button"
                 onClick={() => {
-                  setSelectedZone(null);
                   setSelectedCity(null);
                 }}
               >
-                All Zones
+                All Cities
               </button>
-              {selectedZone && (
-                <button
-                  className={selectedCity ? "btn-ghost" : "btn"}
-                  type="button"
-                  onClick={() => setSelectedCity(null)}
-                >
-                  {selectedZone}
-                </button>
-              )}
-              {selectedZone && selectedCity && (
-                <span className="breadcrumb-current">{selectedCity}</span>
-              )}
+              {selectedCity && <span className="breadcrumb-current">{selectedCity}</span>}
             </div>
 
-            {!selectedZone && (
-              <p className="muted">Select a zone to drill into its city performance.</p>
-            )}
-            {selectedZone && !selectedCity && (
+            {!selectedCity && (
               <p className="muted">Select a city to drill into area performance.</p>
             )}
 
-            {selectedZone ? (
+            {selectedCity ? (
               <div className="table-scroll">
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th>{selectedCity ? "Area" : "City"}</th>
+                      <th>Area</th>
                       <th>Orders</th>
                       <th>Delivered</th>
                       <th>On-Time %</th>
@@ -251,17 +233,9 @@ export default function ZonePerformancePage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {(selectedCity ? drilldown.areas : drilldown.cities).map((row) => (
-                      <tr
-                        key={row.zone}
-                        onClick={() => {
-                          if (!selectedCity) {
-                            setSelectedCity(row.zone);
-                          }
-                        }}
-                        className={!selectedCity ? "clickable" : ""}
-                      >
-                        <td>{row.zone}</td>
+                    {drilldown.areas.map((row) => (
+                      <tr key={row.city}>
+                        <td>{row.city}</td>
                         <td>{row.total_orders}</td>
                         <td>{row.delivered_count}</td>
                         <td>{row.otd_pct?.toFixed(1) ?? "-"}%</td>
@@ -284,7 +258,7 @@ export default function ZonePerformancePage() {
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th>Zone</th>
+                      <th>City</th>
                       <th>Orders</th>
                       <th>Delivered</th>
                       <th>On-Time %</th>
@@ -292,20 +266,19 @@ export default function ZonePerformancePage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {drilldown.zones.map((zone) => (
+                    {drilldown.cities.map((city) => (
                       <tr
-                        key={zone.zone}
+                        key={city.city}
                         className="clickable"
                         onClick={() => {
-                          setSelectedZone(zone.zone);
-                          setSelectedCity(null);
+                          setSelectedCity(city.city);
                         }}
                       >
-                        <td>{zone.zone}</td>
-                        <td>{zone.total_orders}</td>
-                        <td>{zone.delivered_count}</td>
-                        <td>{zone.otd_pct?.toFixed(1) ?? "-"}%</td>
-                        <td>{formatTime(zone.avg_delivery_minutes)}</td>
+                        <td>{city.city}</td>
+                        <td>{city.total_orders}</td>
+                        <td>{city.delivered_count}</td>
+                        <td>{city.otd_pct?.toFixed(1) ?? "-"}%</td>
+                        <td>{formatTime(city.avg_delivery_minutes)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -316,7 +289,7 @@ export default function ZonePerformancePage() {
 
           <section className="card">
             <button className="btn" type="button" onClick={handleExport} disabled={exporting}>
-              {exporting ? "Exporting..." : "📥 Export Zone Data (CSV)"}
+              {exporting ? "Exporting..." : "Export City Data (CSV)"}
             </button>
           </section>
         </>
@@ -326,7 +299,7 @@ export default function ZonePerformancePage() {
 }
 
 type AggregateRow = {
-  zone: string;
+  city: string;
   total_orders: number;
   delivered_count: number;
   on_time_count: number;
@@ -335,14 +308,14 @@ type AggregateRow = {
   volume_status: string;
 };
 
-function aggregateZones(
-  rows: ZoneDetailRow[],
-  getKey: (row: ZoneDetailRow) => string,
+function aggregateRows(
+  rows: CityDetailRow[],
+  getKey: (row: CityDetailRow) => string,
 ): AggregateRow[] {
   const map = new Map<
     string,
     {
-      zone: string;
+      city: string;
       total_orders: number;
       delivered_count: number;
       on_time_count: number;
@@ -354,7 +327,7 @@ function aggregateZones(
   rows.forEach((row) => {
     const key = getKey(row) || "Unknown";
     const existing = map.get(key) ?? {
-      zone: key,
+      city: key,
       total_orders: 0,
       delivered_count: 0,
       on_time_count: 0,
@@ -365,7 +338,7 @@ function aggregateZones(
     existing.total_orders += row.total_orders;
     existing.delivered_count += row.delivered_count;
     existing.on_time_count += row.on_time_count ?? 0;
-    if (row.avg_delivery_minutes) {
+    if (row.avg_delivery_minutes !== null && row.avg_delivery_minutes !== undefined) {
       existing.total_minutes += row.avg_delivery_minutes * row.delivered_count;
       existing.total_delivered += row.delivered_count;
     }
@@ -373,19 +346,33 @@ function aggregateZones(
     map.set(key, existing);
   });
 
-  return Array.from(map.values()).map((entry) => ({
-    zone: entry.zone,
-    total_orders: entry.total_orders,
-    delivered_count: entry.delivered_count,
-    on_time_count: entry.on_time_count,
-    otd_pct:
-      entry.delivered_count > 0
-        ? Math.round((entry.on_time_count / entry.delivered_count) * 1000) / 10
-        : null,
-    avg_delivery_minutes:
-      entry.total_delivered > 0 ? Math.round(entry.total_minutes / entry.total_delivered) : null,
-    volume_status: entry.total_orders < 5 ? "LOW_VOLUME" : "NORMAL",
-  }));
+  return Array.from(map.values())
+    .map((entry) => ({
+      city: entry.city,
+      total_orders: entry.total_orders,
+      delivered_count: entry.delivered_count,
+      on_time_count: entry.on_time_count,
+      otd_pct:
+        entry.delivered_count > 0
+          ? Math.round((entry.on_time_count / entry.delivered_count) * 1000) / 10
+          : null,
+      avg_delivery_minutes:
+        entry.total_delivered > 0 ? Math.round(entry.total_minutes / entry.total_delivered) : null,
+      volume_status: entry.total_orders < 5 ? "LOW_VOLUME" : "NORMAL",
+    }))
+    .sort((a, b) => (b.otd_pct ?? 0) - (a.otd_pct ?? 0));
+}
+
+function isUnknown(value: string | null | undefined): boolean {
+  if (!value) return true;
+  const normalized = value.trim().toLowerCase();
+  return normalized === "" || normalized === "unknown" || normalized === "n/a" || normalized === "na" || normalized === "-";
+}
+
+function getCityValue(row: CityDetailRow): string {
+  if (!isUnknown(row.city)) return row.city.trim();
+  if (!isUnknown(row.zone)) return row.zone.trim();
+  return "UNKNOWN";
 }
 
 function formatTime(minutes: number | null): string {

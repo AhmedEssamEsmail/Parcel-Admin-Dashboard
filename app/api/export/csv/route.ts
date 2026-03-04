@@ -25,8 +25,20 @@ export const GET = withRateLimit(async (request: NextRequest) => {
 
   switch (type) {
     case "zone":
-      data = await fetchZoneData(supabase, warehouse, from, to);
-      filename = `zone_performance_${warehouse}_${from || "all"}_${to || "all"}.csv`;
+      data = await fetchData(supabase, "v_city_performance", warehouse, from, to);
+      filename = `city_performance_${warehouse}_${from || "all"}_${to || "all"}.csv`;
+      break;
+    case "exceptions":
+      data = await fetchExceptionsData(supabase, warehouse, from, to);
+      filename = `exceptions_${warehouse}_${from || "all"}_${to || "all"}.csv`;
+      break;
+    case "promise":
+      data = await fetchData(supabase, "v_promise_reliability_daily", warehouse, from, to);
+      filename = `promise_reliability_${warehouse}_${from || "all"}_${to || "all"}.csv`;
+      break;
+    case "route-efficiency":
+      data = await fetchData(supabase, "v_route_efficiency_daily", warehouse, from, to);
+      filename = `route_efficiency_${warehouse}_${from || "all"}_${to || "all"}.csv`;
       break;
     case "wow":
       data = await fetchWowData(supabase, warehouse, periodType);
@@ -37,7 +49,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
       filename = `comparison_${warehouse}_${from || "all"}_${to || "all"}.csv`;
       break;
     default:
-      data = await fetchDashboardData(supabase, warehouse, from, to);
+      data = await fetchData(supabase, "v_dod_summary", warehouse, from, to);
       filename = `dashboard_${warehouse}_${from || "all"}_${to || "all"}.csv`;
   }
 
@@ -51,23 +63,38 @@ export const GET = withRateLimit(async (request: NextRequest) => {
   });
 });
 
-async function fetchZoneData(
+async function fetchData(
   supabase: ReturnType<typeof getSupabaseAdminClient>,
+  viewName: string,
   warehouse: string,
   from?: string | null,
   to?: string | null,
 ) {
-  let query = supabase
-    .from("v_zone_performance")
-    .select("*")
-    .eq("warehouse_code", warehouse);
+  let query = supabase.from(viewName).select("*");
 
+  if (warehouse !== "ALL") query = query.eq("warehouse_code", warehouse);
   if (from) query = query.gte("day", from);
   if (to) query = query.lte("day", to);
 
   const { data, error } = await query;
   if (error) throw error;
+  return data ?? [];
+}
 
+async function fetchExceptionsData(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  warehouse: string,
+  from?: string | null,
+  to?: string | null,
+) {
+  let query = supabase.from("v_exception_aging").select("*");
+
+  if (warehouse !== "ALL") query = query.eq("warehouse_code", warehouse);
+  if (from) query = query.gte("detected_at", `${from}T00:00:00.000Z`);
+  if (to) query = query.lte("detected_at", `${to}T23:59:59.999Z`);
+
+  const { data, error } = await query;
+  if (error) throw error;
   return data ?? [];
 }
 
@@ -91,25 +118,6 @@ async function fetchWowData(
 
   const { data, error } = await query;
 
-  if (error) throw error;
-  return data ?? [];
-}
-
-async function fetchDashboardData(
-  supabase: ReturnType<typeof getSupabaseAdminClient>,
-  warehouse: string,
-  from?: string | null,
-  to?: string | null,
-) {
-  let query = supabase
-    .from("v_dod_summary")
-    .select("*")
-    .eq("warehouse_code", warehouse);
-
-  if (from) query = query.gte("day", from);
-  if (to) query = query.lte("day", to);
-
-  const { data, error } = await query;
   if (error) throw error;
   return data ?? [];
 }
