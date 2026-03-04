@@ -2,13 +2,14 @@
 
 import { Bar } from "react-chartjs-2";
 import { BarElement, CategoryScale, Chart as ChartJS, Legend, LinearScale, Tooltip } from "chart.js";
+import { formatDateMmmDd } from "@/lib/utils/date-format";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
 
 type Row = { day: string; avg_eta_error_minutes: number | null };
 
 export function EtaErrorDistributionChart({ rows }: { rows: Row[] }) {
-  const labels = rows.map((r) => r.day);
+  const labels = rows.map((row) => formatDateMmmDd(row.day));
   const data = {
     labels,
     datasets: [

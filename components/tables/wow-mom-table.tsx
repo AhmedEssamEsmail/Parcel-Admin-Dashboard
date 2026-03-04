@@ -2,6 +2,8 @@
 
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 
+import { formatDateMmmDd } from "@/lib/utils/date-format";
+
 type PeriodChange = {
   total_placed: { value: number; pct: number };
   otd_pct: { value: number; direction: "up" | "down" };
@@ -99,16 +101,45 @@ export function WowMomTable({ warehouse, from, to, initialData }: WowMomTablePro
     () => warehouse === "ALL" && (data?.groups?.length ?? 0) > 0,
     [warehouse, data?.groups],
   );
+  const groupedWarehouseCodes = useMemo(
+    () => (data?.groups ?? []).map((group) => group.warehouse_code),
+    [data?.groups],
+  );
+  const allGroupsCollapsed = useMemo(
+    () =>
+      groupedWarehouseCodes.length > 0 &&
+      groupedWarehouseCodes.every((code) => collapsedGroups[code] ?? false),
+    [collapsedGroups, groupedWarehouseCodes],
+  );
+
+  const toggleAllGroups = () => {
+    if (groupedWarehouseCodes.length === 0) return;
+    const nextCollapsedState = !allGroupsCollapsed;
+    setCollapsedGroups((current) => {
+      const next = { ...current };
+      groupedWarehouseCodes.forEach((code) => {
+        next[code] = nextCollapsedState;
+      });
+      return next;
+    });
+  };
 
   if (!data?.periods && !data?.groups) return null;
 
   return (
     <div className="wow-mom-table">
       <div className="table-header">
-        <h3>
-          {viewType === "week" ? "Week-over-Week" : "Month-over-Month"} Performance
-          <span className="including-wa">(Including WA Orders)</span>
-        </h3>
+        <div className="wow-header-title">
+          {isGroupedByWarehouse && (
+            <button className="btn-ghost wow-global-collapse-btn" type="button" onClick={toggleAllGroups}>
+              {allGroupsCollapsed ? "Expand All" : "Collapse All"}
+            </button>
+          )}
+          <h3>
+            {viewType === "week" ? "Week-over-Week" : "Month-over-Month"} Performance
+            <span className="including-wa">(Including WA Orders)</span>
+          </h3>
+        </div>
         <div className="toggle-switch">
           <button className={viewType === "week" ? "active" : ""} onClick={() => setViewType("week")}>
             Weekly View
@@ -177,7 +208,7 @@ export function WowMomTable({ warehouse, from, to, initialData }: WowMomTablePro
                           group.periods.map((period, idx) => (
                             <tr key={`${group.warehouse_code}-${period.week_start ?? period.month_start}-${idx}`}>
                               <td className="period-label">
-                                {viewType === "week" ? period.week_label : period.month_label}
+                                {getPeriodLabel(period, viewType)}
                               </td>
                               <td>{period.total_placed}</td>
                               <td>{period.total_delivered}</td>
@@ -205,7 +236,7 @@ export function WowMomTable({ warehouse, from, to, initialData }: WowMomTablePro
                 : (data.periods ?? []).map((period, idx) => (
                     <tr key={`${period.week_start ?? period.month_start}-${idx}`}>
                       <td className="period-label">
-                        {viewType === "week" ? period.week_label : period.month_label}
+                        {getPeriodLabel(period, viewType)}
                       </td>
                       <td>{period.total_placed}</td>
                       <td>{period.total_delivered}</td>
@@ -281,6 +312,16 @@ function formatPercent(value: number | null): string {
 function formatCount(value: number | null): string {
   if (value === null || value === undefined || Number.isNaN(value)) return "-";
   return String(Math.round(value));
+}
+
+function getPeriodLabel(period: PeriodRow, viewType: "week" | "month"): string {
+  if (viewType === "week") {
+    const candidate = period.week_start ?? period.week_label ?? "";
+    return formatDateMmmDd(candidate);
+  }
+
+  const candidate = period.month_start ?? period.month_label ?? "";
+  return formatDateMmmDd(candidate);
 }
 
 function summarizePeriods(periods: PeriodRow[]): CollapsedSummary {

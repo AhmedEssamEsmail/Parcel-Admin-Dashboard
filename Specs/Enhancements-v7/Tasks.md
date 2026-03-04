@@ -36,3 +36,22 @@
 - [x] `npm run type-check`
 - [x] `npm run lint`
 - Note: Full sequence passed on 2026-03-04.
+
+## Phase 7.1 - UI/Format polish
+- [x] Add shared date/time/minutes formatter utility for MMM-DD, MMM-DD HH:MM:SS, and HH:MM
+- [x] Apply MMM-DD formatting across analytics chart/table date labels
+- [x] Update Dashboard On-Time chart visuals (height +25%, medium-gray On Time line, solid line legend swatches)
+- [x] Render "Change (B vs A)" as a third comparison card and center its content
+- [x] Add WoW grouped-table global Expand All / Collapse All button left of title
+- [x] Format Delivery Minutes Trend values as HH:MM in y-axis + tooltip and Route Efficiency table
+- [x] Format Raw Delivery Stages date/time cells to MMM-DD and MMM-DD HH:MM:SS at render-time
+- Note: Updated `lib/utils/date-format.ts`, chart/table components, `components/widgets/comparison-widget.tsx`, `components/tables/wow-mom-table.tsx`, `app/raw-delivery-stages/page.tsx`, and `app/globals.css`.
+
+## Phase 7.1 - Validation (required order)
+- [x] `npm run build`
+- [x] `npm run validate`
+- [x] `npm run test:run`
+- [x] `npm run test:integration`
+- [x] `npm run type-check`
+- [x] `npm run lint`
+- Note: Full sequence passed on 2026-03-04 after UI/format polish implementation.
