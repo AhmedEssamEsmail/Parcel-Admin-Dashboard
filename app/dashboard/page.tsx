@@ -36,7 +36,7 @@ type AvgDeliveryResponse = {
   trend: { direction: "increasing" | "decreasing" | "stable"; change_minutes: number };
 };
 
-const AUTO_REFRESH_INTERVAL = 30000;
+const AUTO_REFRESH_INTERVAL = 2 * 60 * 60 * 1000;
 
 function dateOffset(days: number): string {
   const d = new Date();
@@ -53,7 +53,6 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
-  const [isPaused, setIsPaused] = useState(false);
   const [secondsAgo, setSecondsAgo] = useState(0);
   const [exporting, setExporting] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -92,11 +91,6 @@ export default function DashboardPage() {
   }, [load]);
 
   useEffect(() => {
-    if (isPaused) {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      return;
-    }
-
     const secondsInterval = setInterval(() => {
       setSecondsAgo(Math.floor((Date.now() - lastUpdated.getTime()) / 1000));
     }, 1000);
@@ -111,7 +105,7 @@ export default function DashboardPage() {
       clearInterval(secondsInterval);
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [isPaused, lastUpdated, loading, load]);
+  }, [lastUpdated, loading, load]);
 
   const chartData = useMemo(
     () => ({
@@ -128,9 +122,6 @@ export default function DashboardPage() {
 
       <div className="refresh-bar">
         <span>Last updated: {secondsAgo} seconds ago</span>
-        <button onClick={() => setIsPaused(!isPaused)}>
-          {isPaused ? "▶️ Resume" : "⏸️ Pause"}
-        </button>
         <button onClick={() => void load()} disabled={loading}>
           🔄 Refresh Now
         </button>
@@ -198,17 +189,6 @@ export default function DashboardPage() {
       )}
 
       <section className="card">
-        <h3>On-Time Delivery - Including Waiting Address Orders</h3>
-        <p className="subtitle">Total WA Orders: {data?.wa_count ?? 0}</p>
-        <DodSummaryTable rows={data?.rows_inc_wa ?? []} />
-      </section>
-
-      <section className="card">
-        <h3>On-Time Delivery - Excluding Waiting Address Orders</h3>
-        <DodSummaryTable rows={data?.rows_exc_wa ?? []} />
-      </section>
-
-      <section className="card">
         <WowMomTable warehouse={warehouse === "ALL" ? "KUWAIT" : warehouse} />
       </section>
 
@@ -226,6 +206,17 @@ export default function DashboardPage() {
           totals={chartData.totals}
           onTimePct={chartData.onTimePct}
         />
+      </section>
+
+      <section className="card">
+        <h3>On-Time Delivery - Including Waiting Address Orders</h3>
+        <p className="subtitle">Total WA Orders: {data?.wa_count ?? 0}</p>
+        <DodSummaryTable rows={data?.rows_inc_wa ?? []} />
+      </section>
+
+      <section className="card">
+        <h3>On-Time Delivery - Excluding Waiting Address Orders</h3>
+        <DodSummaryTable rows={data?.rows_exc_wa ?? []} />
       </section>
     </main>
   );

@@ -113,7 +113,7 @@ async function fetchComparisonData(
 
   const { data, error } = await supabase
     .from("v_parcel_kpi")
-    .select("parcel_id, is_on_time, delivered_ts, order_ts, waiting_address")
+    .select("parcel_id, is_on_time, delivered_ts, order_ts_utc, waiting_address")
     .eq("warehouse_code", warehouse)
     .gte("created_date_local", from)
     .lte("created_date_local", to);
