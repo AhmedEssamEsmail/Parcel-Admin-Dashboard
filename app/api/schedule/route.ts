@@ -1,5 +1,6 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
+import { withRateLimit } from "@/lib/middleware/rate-limit";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 
 type ScheduleOverrideInput = {
@@ -36,7 +37,7 @@ function normalizeDate(value: string): string {
   return value;
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withRateLimit(async (request: NextRequest) => {
   const body = (await request.json().catch(() => null)) as ScheduleBody | null;
   const warehouseCode = body?.warehouseCode?.trim().toUpperCase();
 
@@ -117,4 +118,4 @@ export async function POST(request: NextRequest) {
     warehouseCode,
     upsertedCount: count ?? payload.length,
   });
-}
+});

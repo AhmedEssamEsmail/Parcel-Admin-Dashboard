@@ -25,8 +25,14 @@ const MONTHS: Record<string, number> = {
   december: 12,
 };
 
-export type DateParseSource = "warehouse_local_gmt_plus_3" | "utc_source";
-
+/**
+ * Converts parsed date components to ISO timestamp.
+ *
+ * IMPORTANT: All timestamps from GCC warehouses are already in GMT+3.
+ * The database timezone is set to 'Etc/GMT-3' (PostgreSQL notation for GMT+3).
+ *
+ * DO NOT subtract or add hours - store timestamps as-is.
+ */
 function toUtcIso(
   year: number,
   month: number,
@@ -34,7 +40,6 @@ function toUtcIso(
   hour: number,
   minute: number,
   second: number,
-  source: DateParseSource,
 ): string | null {
   if (month < 1 || month > 12 || day < 1 || day > 31) {
     return null;
@@ -54,13 +59,11 @@ function toUtcIso(
     return null;
   }
 
-  const normalizedHour =
-    source === "warehouse_local_gmt_plus_3" ? hour - 3 : hour;
   const utcMillis = Date.UTC(
     year,
     month - 1,
     day,
-    normalizedHour,
+    hour,
     minute,
     second,
     0,
@@ -94,20 +97,12 @@ function toInt(value: string): number {
   return Number.parseInt(value, 10);
 }
 
-function resolveSlashDateParts(
-  first: number,
-  second: number,
-  source: DateParseSource,
-): { day: number; month: number } {
+function resolveSlashDateParts(first: number, second: number): { day: number; month: number } {
   if (first > 12 && second <= 12) {
     return { day: first, month: second };
   }
 
   if (second > 12 && first <= 12) {
-    return { day: second, month: first };
-  }
-
-  if (source === "warehouse_local_gmt_plus_3") {
     return { day: second, month: first };
   }
 
@@ -118,10 +113,7 @@ function hasExplicitTimezone(value: string): boolean {
   return /(?:z|[+-]\d{2}:\d{2}|[+-]\d{4})$/i.test(value);
 }
 
-function parseIsoWithoutTimezone(
-  value: string,
-  source: DateParseSource,
-): string | null {
+function parseIsoWithoutTimezone(value: string): string | null {
   const match = value.match(
     /^(\d{4})-(\d{1,2})-(\d{1,2})t(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?$/i,
   );
@@ -134,13 +126,11 @@ function parseIsoWithoutTimezone(
     toInt(match[4]),
     toInt(match[5]),
     match[6] ? toInt(match[6]) : 0,
-    source,
   );
 }
 
 export function parseWarehouseDateToIso(
   value: unknown,
-  source: DateParseSource = "warehouse_local_gmt_plus_3",
 ): string | null {
   if (value === null || value === undefined) {
     return null;
@@ -154,7 +144,7 @@ export function parseWarehouseDateToIso(
   // ISO-like values are accepted directly.
   if (/^\d{4}-\d{2}-\d{2}t/i.test(raw)) {
     if (!hasExplicitTimezone(raw)) {
-      return parseIsoWithoutTimezone(raw, source);
+      return parseIsoWithoutTimezone(raw);
     }
 
     const d = new Date(raw);
@@ -173,7 +163,7 @@ export function parseWarehouseDateToIso(
     const hour = to24Hour(toInt(monthFirst12h[4]), monthFirst12h[7]);
     const minute = toInt(monthFirst12h[5]);
     const second = monthFirst12h[6] ? toInt(monthFirst12h[6]) : 0;
-    return toUtcIso(year, month, day, hour, minute, second, source);
+    return toUtcIso(year, month, day, hour, minute, second);
   }
 
   // Example: 1 Feb, 2026 8:28:33
@@ -188,7 +178,7 @@ export function parseWarehouseDateToIso(
     const hour = toInt(dayFirst24h[4]);
     const minute = toInt(dayFirst24h[5]);
     const second = dayFirst24h[6] ? toInt(dayFirst24h[6]) : 0;
-    return toUtcIso(year, month, day, hour, minute, second, source);
+    return toUtcIso(year, month, day, hour, minute, second);
   }
 
   // Example: 30/01/2026 07:22:22
@@ -198,21 +188,21 @@ export function parseWarehouseDateToIso(
   if (slashFormat) {
     const first = toInt(slashFormat[1]);
     const secondPart = toInt(slashFormat[2]);
-    const { day, month } = resolveSlashDateParts(first, secondPart, source);
+    const { day, month } = resolveSlashDateParts(first, secondPart);
     const year = toInt(slashFormat[3]);
     const hour = toInt(slashFormat[4]);
     const minute = toInt(slashFormat[5]);
     const seconds = slashFormat[6] ? toInt(slashFormat[6]) : 0;
-    return toUtcIso(year, month, day, hour, minute, seconds, source);
+    return toUtcIso(year, month, day, hour, minute, seconds);
   }
 
   const slashDateOnly = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (slashDateOnly) {
     const first = toInt(slashDateOnly[1]);
     const second = toInt(slashDateOnly[2]);
-    const { day, month } = resolveSlashDateParts(first, second, source);
+    const { day, month } = resolveSlashDateParts(first, second);
     const year = toInt(slashDateOnly[3]);
-    return toUtcIso(year, month, day, 0, 0, 0, source);
+    return toUtcIso(year, month, day, 0, 0, 0);
   }
 
   // Example: 2025-10-11 12:00:00 AM
@@ -226,7 +216,7 @@ export function parseWarehouseDateToIso(
     const hour = to24Hour(toInt(isoSpace[4]), isoSpace[7] ?? null);
     const minute = toInt(isoSpace[5]);
     const second = isoSpace[6] ? toInt(isoSpace[6]) : 0;
-    return toUtcIso(year, month, day, hour, minute, second, source);
+    return toUtcIso(year, month, day, hour, minute, second);
   }
 
   const monthFirstDateOnly = raw.match(/^([A-Za-z]{3,9})\s+(\d{1,2}),\s*(\d{4})$/i);
@@ -235,7 +225,7 @@ export function parseWarehouseDateToIso(
     if (!month) return null;
     const day = toInt(monthFirstDateOnly[2]);
     const year = toInt(monthFirstDateOnly[3]);
-    return toUtcIso(year, month, day, 0, 0, 0, source);
+    return toUtcIso(year, month, day, 0, 0, 0);
   }
 
   const dayFirstDateOnly = raw.match(/^(\d{1,2})\s+([A-Za-z]{3,9}),\s*(\d{4})$/i);
@@ -244,7 +234,7 @@ export function parseWarehouseDateToIso(
     if (!month) return null;
     const day = toInt(dayFirstDateOnly[1]);
     const year = toInt(dayFirstDateOnly[3]);
-    return toUtcIso(year, month, day, 0, 0, 0, source);
+    return toUtcIso(year, month, day, 0, 0, 0);
   }
 
   const isoDateOnly = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
@@ -252,7 +242,7 @@ export function parseWarehouseDateToIso(
     const year = toInt(isoDateOnly[1]);
     const month = toInt(isoDateOnly[2]);
     const day = toInt(isoDateOnly[3]);
-    return toUtcIso(year, month, day, 0, 0, 0, source);
+    return toUtcIso(year, month, day, 0, 0, 0);
   }
 
   return null;

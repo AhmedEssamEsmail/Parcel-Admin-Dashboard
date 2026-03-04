@@ -1,4 +1,4 @@
-﻿import {
+import {
   parseNullableNumber,
   parseNullableString,
   parseWarehouseDateToIso,
@@ -25,11 +25,9 @@ export function normalizePrepareReportRows(rows: CsvRow[]): {
       wrapper: parseNullableString(getField(row, ["preparer", "wrapper"])),
       start_ts: parseWarehouseDateToIso(
         getField(row, ["start time", "start_ts"]),
-        "warehouse_local_gmt_plus_3",
       ),
       finish_ts: parseWarehouseDateToIso(
         getField(row, ["finish time", "finish_ts"]),
-        "warehouse_local_gmt_plus_3",
       ),
       duration_minutes: parseNullableNumber(
         getField(row, ["duration(min)", "duration_minutes", "duration"]),

@@ -1,11 +1,12 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
+import { withRateLimit } from "@/lib/middleware/rate-limit";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import type { RawDeliveryScope } from "@/lib/table/rawDeliveryStages";
 
 const ALLOWED_SCOPES: RawDeliveryScope[] = ["delivered", "all", "not_delivered"];
 
-export async function GET(request: NextRequest) {
+export const GET = withRateLimit(async (request: NextRequest) => {
   const params = request.nextUrl.searchParams;
   const warehouse = params.get("warehouse")?.trim().toUpperCase();
   const from = params.get("from")?.trim();
@@ -110,4 +111,4 @@ export async function GET(request: NextRequest) {
     limit,
     offset,
   });
-}
+});

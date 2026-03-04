@@ -1,12 +1,13 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 import {
   AUTH_COOKIE_NAME,
   AUTH_COOKIE_VALUE,
   AUTH_MAX_AGE_SECONDS,
 } from "@/lib/auth/constants";
+import { withRateLimit } from "@/lib/middleware/rate-limit";
 
-export async function POST(request: NextRequest) {
+export const POST = withRateLimit(async (request: NextRequest) => {
   const body = (await request.json().catch(() => null)) as { password?: string } | null;
   const password = body?.password?.trim();
 
@@ -33,4 +34,4 @@ export async function POST(request: NextRequest) {
   });
 
   return response;
-}
+});

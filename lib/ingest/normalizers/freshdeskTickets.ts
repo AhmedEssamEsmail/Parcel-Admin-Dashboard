@@ -1,4 +1,4 @@
-﻿import {
+import {
   parseNullableNumber,
   parseNullableString,
   parseWarehouseDateToIso,
@@ -24,7 +24,6 @@ export function normalizeFreshdeskRows(rows: CsvRow[]): {
       ticket_id: ticketId,
       created_ts: parseWarehouseDateToIso(
         getField(row, ["order date", "created_ts"]),
-        "warehouse_local_gmt_plus_3",
       ),
       status: parseNullableString(getField(row, ["status", "Status"])),
       agent_name: parseNullableString(getField(row, ["agent name", "agent_name"])),

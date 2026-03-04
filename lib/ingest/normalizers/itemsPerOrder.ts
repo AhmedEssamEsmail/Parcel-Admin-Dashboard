@@ -1,4 +1,4 @@
-﻿import {
+import {
   parseNullableNumber,
   parseWarehouseDateToIso,
 } from "@/lib/ingest/dates";
@@ -31,7 +31,6 @@ export function normalizeItemsPerOrderRows(rows: CsvRow[]): {
       item_count: itemCountRaw === null ? null : Math.trunc(itemCountRaw),
       created_ts: parseWarehouseDateToIso(
         getField(row, ["datetime of cdate_kuwait", "Datetime of CDate_Kuwait", "created_ts"]),
-        "warehouse_local_gmt_plus_3",
       ),
     });
   });

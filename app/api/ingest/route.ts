@@ -1,5 +1,6 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
+import { withRateLimit } from "@/lib/middleware/rate-limit";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import { DATASET_TYPES, type DatasetType } from "@/lib/ingest/types";
 
@@ -39,7 +40,7 @@ const DATASET_CONFIG: Record<
   },
 };
 
-export async function POST(request: NextRequest) {
+export const POST = withRateLimit(async (request: NextRequest) => {
   const body = (await request.json().catch(() => null)) as IngestBody | null;
   const warehouseCode = body?.warehouseCode?.trim().toUpperCase();
   const datasetType = body?.datasetType;
@@ -101,4 +102,4 @@ export async function POST(request: NextRequest) {
     insertedCount,
     ignoredCount,
   });
-}
+});

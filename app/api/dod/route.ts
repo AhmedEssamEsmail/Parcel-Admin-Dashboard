@@ -1,45 +1,69 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { withRateLimit } from "@/lib/middleware/rate-limit";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 
-type DodRow = {
+type DodTableRow = {
   day: string;
-  total_orders: number;
+  total_placed: number;
+  total_delivered: number;
   on_time: number;
   late: number;
-  on_time_pct: number | null;
+  otd_pct: number | null;
 };
 
-type DodRpcRow = {
+type DodResponse = {
+  rows_inc_wa: DodTableRow[];
+  rows_exc_wa: DodTableRow[];
+  wa_count: number;
+  null_on_time_count: number;
+  series: {
+    labels: string[];
+    totalOrders: number[];
+    onTimePct: number[];
+  };
+};
+
+type DodSummaryRow = {
+  warehouse_code: string;
   day: string;
-  total_orders: number;
-  on_time: number;
-  late: number;
-  on_time_pct: number | null;
+  total_placed_inc_wa: number;
+  total_delivered_inc_wa: number;
+  on_time_inc_wa: number;
+  otd_pct_inc_wa: number | null;
+  null_on_time_count: number;
+  wa_count: number;
+  total_placed_exc_wa: number;
+  total_delivered_exc_wa: number;
+  on_time_exc_wa: number;
+  otd_pct_exc_wa: number | null;
 };
 
 type ParcelKpiRow = {
   created_date_local: string;
   is_on_time: boolean | null;
+  waiting_address: boolean | null;
+  delivered_ts: string | null;
 };
 
-async function loadDodByPaging(
+async function fetchDodSummaryFallback(
   warehouse: string | null,
   from: string,
   to: string,
-): Promise<{ rows: DodRow[]; error?: string }> {
+): Promise<{ rows: DodTableRow[]; waCount: number; nullOnTime: number; error?: string }> {
   const supabase = getSupabaseAdminClient();
-  const summary = new Map<string, { total: number; onTime: number; late: number }>();
+  const summary = new Map<string, { totalPlaced: number; totalDelivered: number; onTime: number; late: number }>();
   const pageSize = 1000;
   let offset = 0;
+  let waCount = 0;
+  let nullOnTime = 0;
 
   while (true) {
     let query = supabase
       .from("v_parcel_kpi")
-      .select("created_date_local,is_on_time")
+      .select("created_date_local,is_on_time,waiting_address,delivered_ts")
       .gte("created_date_local", from)
-      .lte("created_date_local", to)
-      .not("delivered_ts", "is", null);
+      .lte("created_date_local", to);
 
     if (warehouse) {
       query = query.eq("warehouse_code", warehouse);
@@ -48,19 +72,36 @@ async function loadDodByPaging(
     const { data, error } = await query.range(offset, offset + pageSize - 1);
 
     if (error) {
-      return { rows: [], error: error.message };
+      return { rows: [], waCount, nullOnTime, error: error.message };
     }
 
     const rows = (data ?? []) as ParcelKpiRow[];
     for (const row of rows) {
       const day = row.created_date_local;
-      const bucket = summary.get(day) ?? { total: 0, onTime: 0, late: 0 };
+      const bucket = summary.get(day) ?? {
+        totalPlaced: 0,
+        totalDelivered: 0,
+        onTime: 0,
+        late: 0,
+      };
 
-      bucket.total += 1;
-      if (row.is_on_time === true) {
-        bucket.onTime += 1;
-      } else if (row.is_on_time === false) {
-        bucket.late += 1;
+      bucket.totalPlaced += 1;
+
+      if (row.delivered_ts !== null) {
+        bucket.totalDelivered += 1;
+        if (row.is_on_time === true) {
+          bucket.onTime += 1;
+        } else if (row.is_on_time === false) {
+          bucket.late += 1;
+        } else {
+          nullOnTime += 1;
+        }
+      } else if (row.is_on_time === null) {
+        nullOnTime += 1;
+      }
+
+      if (row.waiting_address) {
+        waCount += 1;
       }
 
       summary.set(day, bucket);
@@ -72,20 +113,24 @@ async function loadDodByPaging(
     offset += rows.length;
   }
 
-  const dodRows: DodRow[] = Array.from(summary.entries())
+  const dodRows: DodTableRow[] = Array.from(summary.entries())
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([day, bucket]) => ({
       day,
-      total_orders: bucket.total,
+      total_placed: bucket.totalPlaced,
+      total_delivered: bucket.totalDelivered,
       on_time: bucket.onTime,
       late: bucket.late,
-      on_time_pct: bucket.total === 0 ? null : bucket.onTime / bucket.total,
+      otd_pct:
+        bucket.totalDelivered === 0
+          ? null
+          : Number((bucket.onTime / bucket.totalDelivered).toFixed(4)),
     }));
 
-  return { rows: dodRows };
+  return { rows: dodRows, waCount, nullOnTime };
 }
 
-export async function GET(request: NextRequest) {
+export const GET = withRateLimit(async (request: NextRequest) => {
   const params = request.nextUrl.searchParams;
   const warehouse = params.get("warehouse")?.trim().toUpperCase() ?? "ALL";
   const from = params.get("from")?.trim();
@@ -101,41 +146,78 @@ export async function GET(request: NextRequest) {
   const warehouseFilter = warehouse === "ALL" ? null : warehouse;
   const supabase = getSupabaseAdminClient();
 
-  const { data: rpcData, error: rpcError } = await supabase.rpc("get_dod_summary_fast", {
-    p_warehouse_code: warehouseFilter,
-    p_from: from,
-    p_to: to,
-  });
+  let rowsIncWa: DodTableRow[] = [];
+  let rowsExcWa: DodTableRow[] = [];
+  let waCount = 0;
+  let nullOnTime = 0;
 
-  let rows: DodRow[] = [];
+  const { data: summaryData, error: summaryError } = await supabase
+    .from("v_dod_summary")
+    .select(
+      "warehouse_code,day,total_placed_inc_wa,total_delivered_inc_wa,on_time_inc_wa,otd_pct_inc_wa,null_on_time_count,wa_count,total_placed_exc_wa,total_delivered_exc_wa,on_time_exc_wa,otd_pct_exc_wa",
+    )
+    .gte("day", from)
+    .lte("day", to)
+    .order("day", { ascending: true });
 
-  if (rpcError) {
-    const fallback = await loadDodByPaging(warehouseFilter, from, to);
+  if (summaryError) {
+    const fallback = await fetchDodSummaryFallback(warehouseFilter, from, to);
     if (fallback.error) {
       return NextResponse.json({ error: fallback.error }, { status: 500 });
     }
-    rows = fallback.rows;
+    rowsIncWa = fallback.rows;
+    rowsExcWa = fallback.rows;
+    waCount = fallback.waCount;
+    nullOnTime = fallback.nullOnTime;
   } else {
-    rows = ((rpcData ?? []) as DodRpcRow[]).map((row) => ({
+    const filteredRows = (summaryData ?? []) as DodSummaryRow[];
+    const visibleRows = warehouseFilter
+      ? filteredRows.filter((row) => row.warehouse_code === warehouseFilter)
+      : filteredRows;
+
+    rowsIncWa = visibleRows.map((row) => ({
       day: row.day,
-      total_orders: row.total_orders,
-      on_time: row.on_time,
-      late: row.late,
-      on_time_pct:
-        row.on_time_pct === null || row.on_time_pct === undefined
+      total_placed: row.total_placed_inc_wa,
+      total_delivered: row.total_delivered_inc_wa,
+      on_time: row.on_time_inc_wa,
+      late: row.total_delivered_inc_wa - row.on_time_inc_wa,
+      otd_pct:
+        row.otd_pct_inc_wa === null || row.otd_pct_inc_wa === undefined
           ? null
-          : Number(row.on_time_pct),
+          : Number(row.otd_pct_inc_wa) / 100,
     }));
+
+    rowsExcWa = visibleRows.map((row) => ({
+      day: row.day,
+      total_placed: row.total_placed_exc_wa,
+      total_delivered: row.total_delivered_exc_wa,
+      on_time: row.on_time_exc_wa,
+      late: row.total_delivered_exc_wa - row.on_time_exc_wa,
+      otd_pct:
+        row.otd_pct_exc_wa === null || row.otd_pct_exc_wa === undefined
+          ? null
+          : Number(row.otd_pct_exc_wa) / 100,
+    }));
+
+    waCount = visibleRows.reduce((total, row) => total + (row.wa_count ?? 0), 0);
+    nullOnTime = visibleRows.reduce((total, row) => total + (row.null_on_time_count ?? 0), 0);
   }
 
-  return NextResponse.json({
-    rows,
+  const chartLabels = rowsIncWa.map((row) => row.day);
+  const chartTotals = rowsIncWa.map((row) => row.total_delivered);
+  const chartOnTimePct = rowsIncWa.map((row) => (row.otd_pct ?? 0) * 100);
+
+  const response: DodResponse = {
+    rows_inc_wa: rowsIncWa,
+    rows_exc_wa: rowsExcWa,
+    wa_count: waCount,
+    null_on_time_count: nullOnTime,
     series: {
-      labels: rows.map((row) => row.day),
-      totalOrders: rows.map((row) => row.total_orders),
-      onTimePct: rows.map((row) => (row.on_time_pct ?? 0) * 100),
-      onTime: rows.map((row) => row.on_time),
-      late: rows.map((row) => row.late),
+      labels: chartLabels,
+      totalOrders: chartTotals,
+      onTimePct: chartOnTimePct,
     },
-  });
-}
+  };
+
+  return NextResponse.json(response);
+});

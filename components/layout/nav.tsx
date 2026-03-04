@@ -1,13 +1,18 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
+import { MobileNav } from "@/components/layout/mobile-nav";
+
 const LINKS = [
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/zone-performance", label: "Zone Performance" },
+  { href: "/data-quality", label: "Data Quality" },
   { href: "/raw-delivery-stages", label: "Raw Delivery Stages" },
   { href: "/upload", label: "Upload" },
   { href: "/schedule", label: "Schedule" },
+  { href: "/settings", label: "Settings" },
 ];
 
 export function AppNav() {
@@ -34,6 +39,7 @@ export function AppNav() {
           </Link>
         ))}
       </nav>
+      <MobileNav />
       <button className="btn btn-ghost" onClick={logout} type="button">
         Logout
       </button>
