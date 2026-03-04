@@ -1,4 +1,4 @@
-# Parcel Admin Dashboard — Enhancements Design (v7)
+# Parcel Admin Dashboard — Enhancements Design (v8)
 
 ## 1) Design goals
 - One filter system across the app (shared component + URL state).
