@@ -1,0 +1,1 @@
+console.log("Integration test placeholder: no integration tests configured yet.");

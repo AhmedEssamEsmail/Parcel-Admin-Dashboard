@@ -1,9 +1,10 @@
-﻿type DodRow = {
+type DodRow = {
   day: string;
-  total_orders: number;
+  total_placed: number;
+  total_delivered: number;
   on_time: number;
   late: number;
-  on_time_pct: number | null;
+  otd_pct: number | null;
 };
 
 type Props = {
@@ -18,17 +19,16 @@ export function DodSummaryTable({ rows }: Props) {
         <table>
           <thead>
             <tr>
-              <th>Date</th>
-              <th>Total Orders</th>
-              <th>On Time</th>
-              <th>Late</th>
-              <th>On Time %</th>
+              <th>Day</th>
+              <th>Total Placed</th>
+              <th>Total Delivered</th>
+              <th>On-Time %</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={5} className="empty-cell">
+                <td colSpan={4} className="empty-cell">
                   No rows in selected range.
                 </td>
               </tr>
@@ -36,10 +36,9 @@ export function DodSummaryTable({ rows }: Props) {
               rows.map((row) => (
                 <tr key={row.day}>
                   <td>{row.day}</td>
-                  <td>{row.total_orders}</td>
-                  <td>{row.on_time}</td>
-                  <td>{row.late}</td>
-                  <td>{row.on_time_pct === null ? "-" : `${(row.on_time_pct * 100).toFixed(2)}%`}</td>
+                  <td>{row.total_placed}</td>
+                  <td>{row.total_delivered}</td>
+                  <td>{row.otd_pct === null ? "-" : `${(row.otd_pct * 100).toFixed(2)}%`}</td>
                 </tr>
               ))
             )}

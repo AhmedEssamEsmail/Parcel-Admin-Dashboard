@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 
 import { AppNav } from "@/components/layout/nav";
+import { CsvPreview } from "@/components/upload/csv-preview";
 import { DATASET_OPTIONS, WAREHOUSE_CODES } from "@/lib/csv/mappings";
-import { detectWarehouseFromRow } from "@/lib/csv/warehouse";
 import { parseCsvFile } from "@/lib/csv/parse";
 import { normalizeDatasetRows } from "@/lib/ingest/normalizers";
 import type { CsvRow, DatasetType, IngestError } from "@/lib/ingest/types";
@@ -118,6 +118,11 @@ export default function UploadPage() {
   const [defaultsLoaded, setDefaultsLoaded] = useState(false);
 
   const [fileConfigs, setFileConfigs] = useState<UploadFileConfig[]>([]);
+  const [previewRows, setPreviewRows] = useState<CsvRow[]>([]);
+  const [previewFileName, setPreviewFileName] = useState<string | null>(null);
+  const [previewDatasetType, setPreviewDatasetType] = useState<DatasetType | null>(null);
+  const [previewWarehouse, setPreviewWarehouse] = useState<string | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<IngestError[]>([]);
   const [result, setResult] = useState<{
@@ -167,114 +172,83 @@ export default function UploadPage() {
 
   const canSubmit = fileConfigs.length > 0 && !loading;
 
-  const upload = async () => {
+  const submitWithPreview = async () => {
     if (!canSubmit) return;
 
+    const config = fileConfigs[0];
+    if (!config) return;
+
+    try {
+      const rows = await parseCsvFile(config.file);
+      setPreviewRows(rows);
+      setPreviewFileName(config.file.name);
+      setPreviewDatasetType(config.datasetType);
+      setPreviewWarehouse(config.warehouseCode);
+      setPreviewOpen(true);
+    } catch (error) {
+      setErrors([
+        {
+          row: 0,
+          message: error instanceof Error ? error.message : "Failed to parse CSV.",
+        },
+      ]);
+    }
+  };
+
+  const confirmPreview = async (validRows: CsvRow[]) => {
+    if (!previewDatasetType || !previewWarehouse) return;
+    setPreviewOpen(false);
     setLoading(true);
     setErrors([]);
     setResult(null);
 
     try {
-      let parsedCount = 0;
+      const { validRows: normalizedRows, errors: normalizeErrors } = normalizeDatasetRows(
+        previewDatasetType,
+        validRows,
+      );
+      setErrors(normalizeErrors);
+      if (normalizedRows.length === 0) {
+        setLoading(false);
+        return;
+      }
+
+      const chunks = chunkArray(normalizedRows, 500);
       let insertedCount = 0;
       let ignoredCount = 0;
-      const collectedErrors: IngestError[] = [];
 
-      for (const config of fileConfigs) {
-        let csvRows: CsvRow[];
-
-        try {
-          csvRows = await parseCsvFile(config.file);
-        } catch (error) {
-          collectedErrors.push({
-            row: 0,
-            message: `${config.file.name}: ${
-              error instanceof Error ? error.message : "Failed to parse CSV."
-            }`,
-          });
-          continue;
-        }
-
-        parsedCount += csvRows.length;
-
-        const rowsByWarehouse = new Map<string, CsvRow[]>();
-        csvRows.forEach((row, index) => {
-          const detection = detectWarehouseFromRow(row);
-          if (detection.sourceValue && !detection.warehouseCode) {
-            collectedErrors.push({
-              row: index + 2,
-              message: `${config.file.name}: Unknown warehouse value "${detection.sourceValue}".`,
-            });
-            return;
-          }
-
-          const rowWarehouse = detection.warehouseCode ?? config.warehouseCode;
-          const bucket = rowsByWarehouse.get(rowWarehouse);
-          if (bucket) {
-            bucket.push(row);
-          } else {
-            rowsByWarehouse.set(rowWarehouse, [row]);
-          }
+      for (const chunk of chunks) {
+        const response = await fetch("/api/ingest", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            warehouseCode: previewWarehouse,
+            datasetType: previewDatasetType,
+            rows: chunk,
+          }),
         });
 
-        for (const [warehouseCode, warehouseRows] of rowsByWarehouse.entries()) {
-          const { validRows, errors: normalizeErrors } = normalizeDatasetRows(
-            config.datasetType,
-            warehouseRows,
-          );
+        const payload = (await response.json()) as {
+          insertedCount?: number;
+          ignoredCount?: number;
+          error?: string;
+        };
 
-          collectedErrors.push(
-            ...normalizeErrors.map((error) => ({
-              ...error,
-              message: `${config.file.name}: ${error.message}`,
-            })),
-          );
-
-          if (validRows.length === 0) {
-            continue;
-          }
-
-          const chunks = chunkArray(validRows, 500);
-
-          for (const chunk of chunks) {
-            const response = await fetch("/api/ingest", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                warehouseCode,
-                datasetType: config.datasetType,
-                rows: chunk,
-              }),
-            });
-
-            const payload = (await response.json()) as {
-              insertedCount?: number;
-              ignoredCount?: number;
-              error?: string;
-            };
-
-            if (!response.ok) {
-              collectedErrors.push({
-                row: 0,
-                message: `${config.file.name}: ${payload.error ?? "Ingestion failed."}`,
-              });
-              break;
-            }
-
-            insertedCount += payload.insertedCount ?? 0;
-            ignoredCount += payload.ignoredCount ?? 0;
-          }
+        if (!response.ok) {
+          setErrors([
+            {
+              row: 0,
+              message: payload.error ?? "Ingestion failed.",
+            },
+          ]);
+          break;
         }
+
+        insertedCount += payload.insertedCount ?? 0;
+        ignoredCount += payload.ignoredCount ?? 0;
       }
 
-      if (fileConfigs.length > 0) {
-        const last = fileConfigs[fileConfigs.length - 1];
-        setDefaultWarehouseCode(last.warehouseCode);
-        setDefaultDatasetType(last.datasetType);
-      }
-
-      setErrors(collectedErrors);
-      setResult({ parsed: parsedCount, inserted: insertedCount, ignored: ignoredCount });
+      setResult({ parsed: validRows.length, inserted: insertedCount, ignored: ignoredCount });
     } catch (error) {
       setErrors([
         {
@@ -464,10 +438,10 @@ export default function UploadPage() {
           <button
             className="upload-submit-btn"
             type="button"
-            onClick={() => void upload()}
+            onClick={() => void submitWithPreview()}
             disabled={!canSubmit}
           >
-            {loading ? "Uploading..." : "Upload Files"}
+            {loading ? "Uploading..." : "Preview & Upload"}
           </button>
         </div>
       </section>
@@ -499,6 +473,17 @@ export default function UploadPage() {
               </tbody>
             </table>
           </div>
+        </section>
+      )}
+
+      {previewOpen && previewFileName && (
+        <section className="card">
+          <CsvPreview
+            data={previewRows}
+            filename={previewFileName}
+            onConfirm={(rows) => void confirmPreview(rows)}
+            onCancel={() => setPreviewOpen(false)}
+          />
         </section>
       )}
     </main>

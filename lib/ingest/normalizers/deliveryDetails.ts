@@ -1,4 +1,4 @@
-﻿import {
+import {
   parseNullableNumber,
   parseNullableString,
   parseWarehouseDateToIso,
@@ -21,7 +21,6 @@ export function normalizeDeliveryDetailsRows(rows: CsvRow[]): {
     const parcelId = parseNullableNumber(getField(row, ["parcel_id", "Parcel ID"]));
     const orderDate = parseWarehouseDateToIso(
       getField(row, ["order_date", "Order Date"]),
-      "utc_source",
     );
 
     if (!parcelId) {
@@ -40,7 +39,6 @@ export function normalizeDeliveryDetailsRows(rows: CsvRow[]): {
       order_date: orderDate,
       delivery_date: parseWarehouseDateToIso(
         getField(row, ["delivery_date", "parcel_delivery_date", "Delivery Date"]),
-        "utc_source",
       ),
       order_status:
         parseNullableString(getField(row, ["order_status", "Order Status"])) ?? "Unknown",
