@@ -24,7 +24,7 @@ type ParcelKpiRow = {
 };
 
 async function loadDodByPaging(
-  warehouse: string,
+  warehouse: string | null,
   from: string,
   to: string,
 ): Promise<{ rows: DodRow[]; error?: string }> {
@@ -34,14 +34,18 @@ async function loadDodByPaging(
   let offset = 0;
 
   while (true) {
-    const { data, error } = await supabase
+    let query = supabase
       .from("v_parcel_kpi")
       .select("created_date_local,is_on_time")
-      .eq("warehouse_code", warehouse)
       .gte("created_date_local", from)
       .lte("created_date_local", to)
-      .not("delivered_ts", "is", null)
-      .range(offset, offset + pageSize - 1);
+      .not("delivered_ts", "is", null);
+
+    if (warehouse) {
+      query = query.eq("warehouse_code", warehouse);
+    }
+
+    const { data, error } = await query.range(offset, offset + pageSize - 1);
 
     if (error) {
       return { rows: [], error: error.message };
@@ -83,21 +87,22 @@ async function loadDodByPaging(
 
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
-  const warehouse = params.get("warehouse")?.trim().toUpperCase();
+  const warehouse = params.get("warehouse")?.trim().toUpperCase() ?? "ALL";
   const from = params.get("from")?.trim();
   const to = params.get("to")?.trim();
 
-  if (!warehouse || !from || !to) {
+  if (!from || !to) {
     return NextResponse.json(
-      { error: "warehouse, from, and to query params are required." },
+      { error: "from and to query params are required." },
       { status: 400 },
     );
   }
 
+  const warehouseFilter = warehouse === "ALL" ? null : warehouse;
   const supabase = getSupabaseAdminClient();
 
   const { data: rpcData, error: rpcError } = await supabase.rpc("get_dod_summary_fast", {
-    p_warehouse_code: warehouse,
+    p_warehouse_code: warehouseFilter,
     p_from: from,
     p_to: to,
   });
@@ -105,7 +110,7 @@ export async function GET(request: NextRequest) {
   let rows: DodRow[] = [];
 
   if (rpcError) {
-    const fallback = await loadDodByPaging(warehouse, from, to);
+    const fallback = await loadDodByPaging(warehouseFilter, from, to);
     if (fallback.error) {
       return NextResponse.json({ error: fallback.error }, { status: 500 });
     }

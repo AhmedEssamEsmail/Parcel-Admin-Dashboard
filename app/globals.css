@@ -200,26 +200,30 @@ button {
   align-items: center;
 }
 
-.upload-submit-btn {
-  background-color: var(--primary);
+button.upload-submit-btn {
+  background-color: #0f766e;
   color: #ffffff;
-  border: 1px solid var(--primary-strong);
+  border: 1px solid #115e59;
   min-width: 140px;
   min-height: 42px;
-  font-weight: 600;
+  font-weight: 700;
+  font-family: var(--font-geist-sans), sans-serif;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  opacity: 1;
 }
 
-.upload-submit-btn:not(:disabled):hover {
-  background-color: var(--primary-strong);
+button.upload-submit-btn:hover:not(:disabled) {
+  background-color: #115e59;
+  color: #ffffff;
 }
 
-.upload-submit-btn:disabled {
+button.upload-submit-btn:disabled {
   background-color: #94a3b8;
   border-color: #94a3b8;
   color: #ffffff;
+  opacity: 1;
 }
 
 .table-card td select {

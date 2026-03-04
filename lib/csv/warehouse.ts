@@ -57,16 +57,24 @@ export function detectWarehouseFromRow(row: CsvRow): {
   warehouseCode: string | null;
   sourceValue: string | null;
 } {
+  let firstUnrecognizedValue: string | null = null;
+
   for (const key of WAREHOUSE_FIELD_CANDIDATES) {
     const value = getFieldCaseInsensitive(row, key);
     if (!value) continue;
 
-    return {
-      warehouseCode: inferWarehouseCodeFromText(value),
-      sourceValue: value,
-    };
+    const inferred = inferWarehouseCodeFromText(value);
+    if (inferred) {
+      return {
+        warehouseCode: inferred,
+        sourceValue: value,
+      };
+    }
+
+    if (!firstUnrecognizedValue) {
+      firstUnrecognizedValue = value;
+    }
   }
 
-  return { warehouseCode: null, sourceValue: null };
+  return { warehouseCode: null, sourceValue: firstUnrecognizedValue };
 }
-

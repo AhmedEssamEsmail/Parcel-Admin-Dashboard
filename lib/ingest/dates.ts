@@ -35,7 +35,25 @@ function toUtcIso(
   minute: number,
   second: number,
   source: DateParseSource,
-): string {
+): string | null {
+  if (month < 1 || month > 12 || day < 1 || day > 31) {
+    return null;
+  }
+
+  const dateCheck = new Date(Date.UTC(year, month - 1, day));
+  if (
+    Number.isNaN(dateCheck.getTime()) ||
+    dateCheck.getUTCFullYear() !== year ||
+    dateCheck.getUTCMonth() !== month - 1 ||
+    dateCheck.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 59) {
+    return null;
+  }
+
   const normalizedHour =
     source === "warehouse_local_gmt_plus_3" ? hour - 3 : hour;
   const utcMillis = Date.UTC(
@@ -74,6 +92,26 @@ function to24Hour(hour: number, meridiem: string | null): number {
 
 function toInt(value: string): number {
   return Number.parseInt(value, 10);
+}
+
+function resolveSlashDateParts(
+  first: number,
+  second: number,
+  source: DateParseSource,
+): { day: number; month: number } {
+  if (first > 12 && second <= 12) {
+    return { day: first, month: second };
+  }
+
+  if (second > 12 && first <= 12) {
+    return { day: second, month: first };
+  }
+
+  if (source === "warehouse_local_gmt_plus_3") {
+    return { day: second, month: first };
+  }
+
+  return { day: first, month: second };
 }
 
 function hasExplicitTimezone(value: string): boolean {
@@ -158,13 +196,23 @@ export function parseWarehouseDateToIso(
     /^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/,
   );
   if (slashFormat) {
-    const day = toInt(slashFormat[1]);
-    const month = toInt(slashFormat[2]);
+    const first = toInt(slashFormat[1]);
+    const secondPart = toInt(slashFormat[2]);
+    const { day, month } = resolveSlashDateParts(first, secondPart, source);
     const year = toInt(slashFormat[3]);
     const hour = toInt(slashFormat[4]);
     const minute = toInt(slashFormat[5]);
-    const second = slashFormat[6] ? toInt(slashFormat[6]) : 0;
-    return toUtcIso(year, month, day, hour, minute, second, source);
+    const seconds = slashFormat[6] ? toInt(slashFormat[6]) : 0;
+    return toUtcIso(year, month, day, hour, minute, seconds, source);
+  }
+
+  const slashDateOnly = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (slashDateOnly) {
+    const first = toInt(slashDateOnly[1]);
+    const second = toInt(slashDateOnly[2]);
+    const { day, month } = resolveSlashDateParts(first, second, source);
+    const year = toInt(slashDateOnly[3]);
+    return toUtcIso(year, month, day, 0, 0, 0, source);
   }
 
   // Example: 2025-10-11 12:00:00 AM
@@ -179,6 +227,32 @@ export function parseWarehouseDateToIso(
     const minute = toInt(isoSpace[5]);
     const second = isoSpace[6] ? toInt(isoSpace[6]) : 0;
     return toUtcIso(year, month, day, hour, minute, second, source);
+  }
+
+  const monthFirstDateOnly = raw.match(/^([A-Za-z]{3,9})\s+(\d{1,2}),\s*(\d{4})$/i);
+  if (monthFirstDateOnly) {
+    const month = parseMonthName(monthFirstDateOnly[1]);
+    if (!month) return null;
+    const day = toInt(monthFirstDateOnly[2]);
+    const year = toInt(monthFirstDateOnly[3]);
+    return toUtcIso(year, month, day, 0, 0, 0, source);
+  }
+
+  const dayFirstDateOnly = raw.match(/^(\d{1,2})\s+([A-Za-z]{3,9}),\s*(\d{4})$/i);
+  if (dayFirstDateOnly) {
+    const month = parseMonthName(dayFirstDateOnly[2]);
+    if (!month) return null;
+    const day = toInt(dayFirstDateOnly[1]);
+    const year = toInt(dayFirstDateOnly[3]);
+    return toUtcIso(year, month, day, 0, 0, 0, source);
+  }
+
+  const isoDateOnly = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (isoDateOnly) {
+    const year = toInt(isoDateOnly[1]);
+    const month = toInt(isoDateOnly[2]);
+    const day = toInt(isoDateOnly[3]);
+    return toUtcIso(year, month, day, 0, 0, 0, source);
   }
 
   return null;

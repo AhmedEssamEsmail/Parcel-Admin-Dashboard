@@ -3,25 +3,12 @@
   parseNullableString,
   parseWarehouseDateToIso,
 } from "@/lib/ingest/dates";
+import { getField } from "@/lib/ingest/normalizers/helpers";
 import type {
   CsvRow,
   IngestError,
   NormalizedDeliveryDetailsRow,
 } from "@/lib/ingest/types";
-
-function getField(row: CsvRow, keys: string[]): string {
-  const map = new Map<string, string>();
-  for (const key of Object.keys(row)) {
-    map.set(key.trim().toLowerCase(), key);
-  }
-
-  for (const key of keys) {
-    const hit = map.get(key.trim().toLowerCase());
-    if (hit) return row[hit] ?? "";
-  }
-
-  return "";
-}
 
 export function normalizeDeliveryDetailsRows(rows: CsvRow[]): {
   validRows: NormalizedDeliveryDetailsRow[];
@@ -56,8 +43,7 @@ export function normalizeDeliveryDetailsRows(rows: CsvRow[]): {
         "utc_source",
       ),
       order_status:
-        parseNullableString(getField(row, ["order_status", "Order Status"])) ??
-        "Unknown",
+        parseNullableString(getField(row, ["order_status", "Order Status"])) ?? "Unknown",
       delivery_address: parseNullableString(
         getField(row, ["delivery_address", "Delivery Address"]),
       ),

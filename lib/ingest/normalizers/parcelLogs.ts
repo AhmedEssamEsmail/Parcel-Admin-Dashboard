@@ -3,21 +3,8 @@
   parseNullableString,
   parseWarehouseDateToIso,
 } from "@/lib/ingest/dates";
+import { getField } from "@/lib/ingest/normalizers/helpers";
 import type { CsvRow, IngestError, NormalizedParcelLogRow } from "@/lib/ingest/types";
-
-function getField(row: CsvRow, keys: string[]): string {
-  const map = new Map<string, string>();
-  for (const key of Object.keys(row)) {
-    map.set(key.trim().toLowerCase(), key);
-  }
-
-  for (const key of keys) {
-    const hit = map.get(key.trim().toLowerCase());
-    if (hit) return row[hit] ?? "";
-  }
-
-  return "";
-}
 
 export function normalizeParcelLogRows(rows: CsvRow[]): {
   validRows: NormalizedParcelLogRow[];

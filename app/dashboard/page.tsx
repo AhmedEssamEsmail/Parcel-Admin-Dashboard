@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { OnTimeComboChart } from "@/components/charts/on-time-combo";
 import { AppNav } from "@/components/layout/nav";
@@ -22,14 +22,14 @@ function dateOffset(days: number): string {
 }
 
 export default function DashboardPage() {
-  const [warehouse, setWarehouse] = useState<string>("KUWAIT");
+  const [warehouse, setWarehouse] = useState<string>("ALL");
   const [from, setFrom] = useState<string>(dateOffset(-45));
   const [to, setTo] = useState<string>(dateOffset(0));
   const [rows, setRows] = useState<DodRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
 
@@ -52,12 +52,11 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [warehouse, from, to]);
 
   useEffect(() => {
-    load().catch(() => undefined);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    void load();
+  }, [load]);
 
   const chartData = useMemo(
     () => ({
@@ -76,6 +75,7 @@ export default function DashboardPage() {
         <label>
           Warehouse
           <select value={warehouse} onChange={(event) => setWarehouse(event.target.value)}>
+            <option value="ALL">All Warehouses</option>
             {WAREHOUSE_CODES.map((code) => (
               <option key={code} value={code}>
                 {code}

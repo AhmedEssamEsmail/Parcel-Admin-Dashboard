@@ -51,14 +51,17 @@ const DATASET_HINTS: Array<{ type: DatasetType; hints: string[] }> = [
   { type: "parcel_logs", hints: ["parcel logs", "parcel log"] },
   {
     type: "items_per_order",
-    hints: ["items per order", "items report", "items"] ,
+    hints: ["items per order", "items per order report", "items report", "items"],
   },
   {
     type: "collectors_report",
     hints: ["collectors report", "collector report", "collectors"],
   },
-  { type: "prepare_report", hints: ["prepare report", "preparer", "prepare"] },
-  { type: "freshdesk_tickets", hints: ["freshdesk", "fresh desk", "tickets"] },
+  {
+    type: "prepare_report",
+    hints: ["prepare report", "prepar report", "prep report", "preparer", "prepare"],
+  },
+  { type: "freshdesk_tickets", hints: ["freshdesk data", "freshdesk", "fresh desk", "tickets"] },
 ];
 
 const WAREHOUSE_HINTS: Array<{ code: string; hints: string[] }> = [
@@ -459,7 +462,7 @@ export default function UploadPage() {
             Clear
           </button>
           <button
-            className="btn upload-submit-btn"
+            className="upload-submit-btn"
             type="button"
             onClick={() => void upload()}
             disabled={!canSubmit}
