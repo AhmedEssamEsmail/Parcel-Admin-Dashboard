@@ -12,6 +12,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
   const warehouse = params.get("warehouse")?.trim().toUpperCase();
   const from = params.get("from")?.trim();
   const to = params.get("to")?.trim();
+  const periodType = params.get("periodType")?.trim().toLowerCase() === "month" ? "month" : "week";
 
   if (!warehouse) {
     return NextResponse.json({ error: "warehouse is required" }, { status: 400 });
@@ -28,8 +29,8 @@ export const GET = withRateLimit(async (request: NextRequest) => {
       filename = `zone_performance_${warehouse}_${from || "all"}_${to || "all"}.csv`;
       break;
     case "wow":
-      data = await fetchWowData(supabase, warehouse);
-      filename = `weekly_summary_${warehouse}.csv`;
+      data = await fetchWowData(supabase, warehouse, periodType);
+      filename = `${periodType === "month" ? "monthly" : "weekly"}_summary_${warehouse}.csv`;
       break;
     case "comparison":
       data = await fetchComparisonData(supabase, warehouse, from, to);
@@ -73,12 +74,22 @@ async function fetchZoneData(
 async function fetchWowData(
   supabase: ReturnType<typeof getSupabaseAdminClient>,
   warehouse: string,
+  periodType: "week" | "month",
 ) {
-  const { data, error } = await supabase
-    .from("v_wow_summary")
+  const viewName = periodType === "month" ? "v_mom_summary" : "v_wow_summary";
+  const dateColumn = periodType === "month" ? "month_start" : "week_start";
+
+  let query = supabase
+    .from(viewName)
     .select("*")
-    .eq("warehouse_code", warehouse)
-    .order("week_start", { ascending: false });
+    .order("warehouse_code", { ascending: true })
+    .order(dateColumn, { ascending: false });
+
+  if (warehouse !== "ALL") {
+    query = query.eq("warehouse_code", warehouse);
+  }
+
+  const { data, error } = await query;
 
   if (error) throw error;
   return data ?? [];

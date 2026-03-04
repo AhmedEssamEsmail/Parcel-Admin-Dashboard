@@ -59,6 +59,7 @@ const COLUMNS = [
   "expected_time_delivery",
   "actual_time_delivery",
   "delivery_time_status",
+  "timing_source",
   "ops_time",
   "iftar_time",
 ] as const;
@@ -77,6 +78,7 @@ export default function RawDeliveryStagesPage() {
   const [city, setCity] = useState("");
   const [area, setArea] = useState("");
   const [opsIssue, setOpsIssue] = useState("all");
+  const [timingSource, setTimingSource] = useState("all");
   const [rows, setRows] = useState<RawRow[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -107,6 +109,7 @@ export default function RawDeliveryStagesPage() {
       if (city.trim()) params.set("city", city.trim());
       if (area.trim()) params.set("area", area.trim());
       if (opsIssue !== "all") params.set("ops_issue", opsIssue);
+      if (timingSource !== "all") params.set("timing_source", timingSource);
 
       const response = await fetch(`/api/raw-delivery-stages?${params.toString()}`);
       const payload = (await response.json()) as {
@@ -236,6 +239,15 @@ export default function RawDeliveryStagesPage() {
             <option value="all">All</option>
             <option value="Ops Issue">Ops Issue</option>
             <option value="Wait on Delivery Issue">Wait on Delivery Issue</option>
+          </select>
+        </label>
+
+        <label>
+          Timing Source
+          <select value={timingSource} onChange={(event) => setTimingSource(event.target.value)}>
+            <option value="all">All</option>
+            <option value="CITY_RULE">City Rule</option>
+            <option value="WAREHOUSE_FALLBACK">Warehouse Fallback</option>
           </select>
         </label>
 

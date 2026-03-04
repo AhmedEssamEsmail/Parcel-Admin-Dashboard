@@ -30,9 +30,10 @@ type Props = {
   labels: string[];
   totals: number[];
   onTimePct: number[];
+  waDeliveredPct: number[];
 };
 
-export function OnTimeComboChart({ labels, totals, onTimePct }: Props) {
+export function OnTimeComboChart({ labels, totals, onTimePct, waDeliveredPct }: Props) {
   const data = {
     labels,
     datasets: [
@@ -50,6 +51,15 @@ export function OnTimeComboChart({ labels, totals, onTimePct }: Props) {
         data: onTimePct,
         borderColor: "#0f172a",
         pointBackgroundColor: "#0f172a",
+        tension: 0.3,
+        yAxisID: "y1",
+      },
+      {
+        type: "line" as const,
+        label: "WA Delivered %",
+        data: waDeliveredPct,
+        borderColor: "#f97316",
+        pointBackgroundColor: "#f97316",
         tension: 0.3,
         yAxisID: "y1",
       },

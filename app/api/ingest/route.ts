@@ -8,6 +8,10 @@ type IngestBody = {
   warehouseCode?: string;
   datasetType?: DatasetType;
   rows?: Array<Record<string, string | number | null>>;
+  fileName?: string;
+  parsedCount?: number;
+  warningCount?: number;
+  errorCount?: number;
 };
 
 const DATASET_CONFIG: Record<
@@ -38,13 +42,26 @@ const DATASET_CONFIG: Record<
     table: "freshdesk_tickets",
     onConflict: "warehouse_id,ticket_id",
   },
+  wa_orders: {
+    table: "wa_orders",
+    onConflict: "warehouse_id,parcel_id",
+  },
+  delivery_timing_rules: {
+    table: "warehouse_delivery_timing_rules",
+    onConflict: "warehouse_id,city_normalized",
+  },
 };
 
 export const POST = withRateLimit(async (request: NextRequest) => {
+  const startedAtIso = new Date().toISOString();
   const body = (await request.json().catch(() => null)) as IngestBody | null;
   const warehouseCode = body?.warehouseCode?.trim().toUpperCase();
   const datasetType = body?.datasetType;
   const rows = body?.rows ?? [];
+  const fileName = body?.fileName?.trim() || null;
+  const parsedCount = Math.max(0, Number(body?.parsedCount ?? rows.length) || rows.length);
+  const warningCount = Math.max(0, Number(body?.warningCount ?? 0) || 0);
+  const errorCount = Math.max(0, Number(body?.errorCount ?? 0) || 0);
 
   if (!warehouseCode) {
     return NextResponse.json({ error: "warehouseCode is required." }, { status: 400 });
@@ -94,12 +111,44 @@ export const POST = withRateLimit(async (request: NextRequest) => {
 
   const insertedCount = count ?? 0;
   const ignoredCount = Math.max(0, payload.length - insertedCount);
+  const status = errorCount > 0 ? (insertedCount > 0 ? "partial" : "failed") : "success";
+
+  const { data: ingestRun, error: ingestRunError } = await supabase
+    .from("ingest_runs")
+    .insert({
+      warehouse_code: warehouseCode,
+      dataset_type: datasetType,
+      file_name: fileName,
+      parsed_count: parsedCount,
+      valid_count: rows.length,
+      inserted_count: insertedCount,
+      ignored_count: ignoredCount,
+      warning_count: warningCount,
+      error_count: errorCount,
+      status,
+      details: {
+        api: "/api/ingest",
+      },
+      started_at: startedAtIso,
+      completed_at: new Date().toISOString(),
+    })
+    .select("id")
+    .maybeSingle();
+
+  if (ingestRunError) {
+    // Keep ingestion successful even if observability tables are not migrated yet.
+    console.warn("Failed to write ingest_runs:", ingestRunError.message);
+  }
 
   return NextResponse.json({
     warehouseCode,
     datasetType,
-    parsedCount: payload.length,
+    parsedCount,
+    validCount: rows.length,
+    warningCount,
+    errorCount,
     insertedCount,
     ignoredCount,
+    ingestRunId: ingestRun?.id ?? null,
   });
 });

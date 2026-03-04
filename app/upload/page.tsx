@@ -7,7 +7,7 @@ import { CsvPreview } from "@/components/upload/csv-preview";
 import { DATASET_OPTIONS, WAREHOUSE_CODES } from "@/lib/csv/mappings";
 import { parseCsvFile } from "@/lib/csv/parse";
 import { normalizeDatasetRows } from "@/lib/ingest/normalizers";
-import type { CsvRow, DatasetType, IngestError } from "@/lib/ingest/types";
+import type { CsvRow, DatasetType, IngestError, IngestWarning } from "@/lib/ingest/types";
 
 const DEFAULTS_STORAGE_KEY = "parcel-admin-upload-defaults-v1";
 
@@ -62,6 +62,14 @@ const DATASET_HINTS: Array<{ type: DatasetType; hints: string[] }> = [
     hints: ["prepare report", "prepar report", "prep report", "preparer", "prepare"],
   },
   { type: "freshdesk_tickets", hints: ["freshdesk data", "freshdesk", "fresh desk", "tickets"] },
+  {
+    type: "wa_orders",
+    hints: ["wa orders", "waiting address", "wa list", "wa sheet"],
+  },
+  {
+    type: "delivery_timing_rules",
+    hints: ["delivery timing", "timing rules", "delivery sla hours"],
+  },
 ];
 
 const WAREHOUSE_HINTS: Array<{ code: string; hints: string[] }> = [
@@ -125,6 +133,7 @@ export default function UploadPage() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<IngestError[]>([]);
+  const [warnings, setWarnings] = useState<IngestWarning[]>([]);
   const [result, setResult] = useState<{
     parsed: number;
     inserted: number;
@@ -200,14 +209,20 @@ export default function UploadPage() {
     setPreviewOpen(false);
     setLoading(true);
     setErrors([]);
+    setWarnings([]);
     setResult(null);
 
     try {
-      const { validRows: normalizedRows, errors: normalizeErrors } = normalizeDatasetRows(
+      const {
+        validRows: normalizedRows,
+        errors: normalizeErrors,
+        warnings: normalizeWarnings,
+      } = normalizeDatasetRows(
         previewDatasetType,
         validRows,
       );
       setErrors(normalizeErrors);
+      setWarnings(normalizeWarnings);
       if (normalizedRows.length === 0) {
         setLoading(false);
         return;
@@ -225,6 +240,10 @@ export default function UploadPage() {
             warehouseCode: previewWarehouse,
             datasetType: previewDatasetType,
             rows: chunk,
+            fileName: previewFileName,
+            parsedCount: validRows.length,
+            warningCount: normalizeWarnings.length,
+            errorCount: normalizeErrors.length,
           }),
         });
 
@@ -271,6 +290,7 @@ export default function UploadPage() {
 
     setFileConfigs(configs);
     setErrors([]);
+    setWarnings([]);
     setResult(null);
   };
 
@@ -468,6 +488,30 @@ export default function UploadPage() {
                   <tr key={`${error.row}-${index}`}>
                     <td>{error.row}</td>
                     <td>{error.message}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {warnings.length > 0 && (
+        <section className="table-card">
+          <h3>Upload Warnings</h3>
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Row</th>
+                  <th>Message</th>
+                </tr>
+              </thead>
+              <tbody>
+                {warnings.map((warning, index) => (
+                  <tr key={`${warning.row}-${index}`}>
+                    <td>{warning.row}</td>
+                    <td>{warning.message}</td>
                   </tr>
                 ))}
               </tbody>

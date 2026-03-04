@@ -24,14 +24,21 @@ export default function DataQualityPage() {
   const [data, setData] = useState<DataQualityResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [expandedIssue, setExpandedIssue] = useState<string | null>(null);
+  const [severityFilter, setSeverityFilter] = useState("all");
+  const [resolutionFilter, setResolutionFilter] = useState("open");
+  const [checkIdFilter, setCheckIdFilter] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/data-quality");
+    const params = new URLSearchParams();
+    if (severityFilter !== "all") params.set("severity", severityFilter);
+    if (resolutionFilter) params.set("resolution", resolutionFilter);
+    if (checkIdFilter.trim()) params.set("check_id", checkIdFilter.trim());
+    const res = await fetch(`/api/data-quality?${params.toString()}`);
     const json = (await res.json()) as DataQualityResponse;
     setData(json);
     setLoading(false);
-  }, []);
+  }, [severityFilter, resolutionFilter, checkIdFilter]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -63,6 +70,30 @@ export default function DataQualityPage() {
         <h1>Data Quality Monitor</h1>
         <p className="muted">Last updated: {new Date().toLocaleString()}</p>
       </header>
+
+      <section className="card grid three">
+        <label>
+          Severity
+          <select value={severityFilter} onChange={(event) => setSeverityFilter(event.target.value)}>
+            <option value="all">All</option>
+            <option value="critical">Critical</option>
+            <option value="warning">Warning</option>
+            <option value="info">Info</option>
+          </select>
+        </label>
+        <label>
+          Resolution
+          <select value={resolutionFilter} onChange={(event) => setResolutionFilter(event.target.value)}>
+            <option value="open">Open</option>
+            <option value="resolved">Resolved</option>
+            <option value="all">All</option>
+          </select>
+        </label>
+        <label>
+          Check ID
+          <input value={checkIdFilter} onChange={(event) => setCheckIdFilter(event.target.value)} />
+        </label>
+      </section>
 
       <section className="grid three">
         <div className="card summary-card critical">

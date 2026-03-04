@@ -17,4 +17,6 @@ export const DATASET_OPTIONS: { value: DatasetType; label: string }[] = [
   { value: "collectors_report", label: "Collectors Report (optional)" },
   { value: "prepare_report", label: "Prepare Report (optional)" },
   { value: "freshdesk_tickets", label: "Freshdesk (optional)" },
+  { value: "wa_orders", label: "WA Orders (optional)" },
+  { value: "delivery_timing_rules", label: "Delivery Timing Rules (optional)" },
 ];
