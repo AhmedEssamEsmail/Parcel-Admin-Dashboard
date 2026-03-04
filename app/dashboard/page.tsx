@@ -7,6 +7,7 @@ import { AppNav } from "@/components/layout/nav";
 import { DodSummaryTable } from "@/components/tables/dod-summary-table";
 import { WowMomTable } from "@/components/tables/wow-mom-table";
 import { ComparisonWidget } from "@/components/widgets/comparison-widget";
+import { IngestHealthWidget } from "@/components/widgets/ingest-health-widget";
 import { Leaderboard } from "@/components/widgets/leaderboard";
 import { WAREHOUSE_CODES } from "@/lib/csv/mappings";
 
@@ -28,12 +29,17 @@ type DodResponse = {
     labels: string[];
     totalOrders: number[];
     onTimePct: number[];
+    waDeliveredPct: number[];
   };
 };
 
 type AvgDeliveryResponse = {
   overall: { avg_minutes: number | null };
   trend: { direction: "increasing" | "decreasing" | "stable"; change_minutes: number };
+};
+
+type IngestHealthResponse = {
+  summary: { total_runs: number; warning_runs: number; failed_runs: number };
 };
 
 const AUTO_REFRESH_INTERVAL = 2 * 60 * 60 * 1000;
@@ -51,7 +57,9 @@ export default function DashboardPage() {
   const [data, setData] = useState<DodResponse | null>(null);
   const [avgDelivery, setAvgDelivery] = useState<AvgDeliveryResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [ingestLoading, setIngestLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ingestHealth, setIngestHealth] = useState<IngestHealthResponse | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [secondsAgo, setSecondsAgo] = useState(0);
   const [exporting, setExporting] = useState(false);
@@ -86,9 +94,25 @@ export default function DashboardPage() {
     }
   }, [warehouse, from, to]);
 
+  const loadIngestHealth = useCallback(async () => {
+    setIngestLoading(true);
+    try {
+      const params = new URLSearchParams({
+        warehouse,
+        days: "7",
+      });
+      const response = await fetch(`/api/ingest-health?${params.toString()}`);
+      const payload = (await response.json()) as IngestHealthResponse;
+      if (response.ok) setIngestHealth(payload);
+    } finally {
+      setIngestLoading(false);
+    }
+  }, [warehouse]);
+
   useEffect(() => {
     void load();
-  }, [load]);
+    void loadIngestHealth();
+  }, [load, loadIngestHealth]);
 
   useEffect(() => {
     const secondsInterval = setInterval(() => {
@@ -112,6 +136,7 @@ export default function DashboardPage() {
       labels: data?.series.labels ?? [],
       totals: data?.series.totalOrders ?? [],
       onTimePct: data?.series.onTimePct ?? [],
+      waDeliveredPct: data?.series.waDeliveredPct ?? [],
     }),
     [data],
   );
@@ -189,12 +214,14 @@ export default function DashboardPage() {
       )}
 
       <section className="card">
-        <WowMomTable warehouse={warehouse === "ALL" ? "KUWAIT" : warehouse} />
+        <WowMomTable warehouse={warehouse} />
       </section>
 
       <section className="card">
         <ComparisonWidget warehouse={warehouse === "ALL" ? "KUWAIT" : warehouse} />
       </section>
+
+      <IngestHealthWidget data={ingestHealth} loading={ingestLoading} />
 
       <section className="card">
         <Leaderboard />
@@ -205,12 +232,15 @@ export default function DashboardPage() {
           labels={chartData.labels}
           totals={chartData.totals}
           onTimePct={chartData.onTimePct}
+          waDeliveredPct={chartData.waDeliveredPct}
         />
       </section>
 
       <section className="card">
         <h3>On-Time Delivery - Including Waiting Address Orders</h3>
-        <p className="subtitle">Total WA Orders: {data?.wa_count ?? 0}</p>
+        <p className="subtitle" title="OTD% = On-Time Delivered / Total Delivered. WA Delivered % = WA Delivered / Total Delivered.">
+          Total WA Orders: {data?.wa_count ?? 0}
+        </p>
         <DodSummaryTable rows={data?.rows_inc_wa ?? []} />
       </section>
 

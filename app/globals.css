@@ -313,6 +313,28 @@ button {
   color: var(--primary-strong);
 }
 
+.warehouse-group-row td {
+  background: #f8fafc;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 6px 10px;
+}
+
+.warehouse-collapse-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 2px;
+  background: transparent;
+  color: var(--text);
+}
+
+.warehouse-group-code {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
 .comparison-widget .comparison-cards {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -595,4 +617,8 @@ thead th {
   .btn-row {
     flex-direction: column;
   }
+}
+
+.ingest-health-widget .grid.three {
+  margin-top: 8px;
 }

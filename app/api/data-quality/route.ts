@@ -7,6 +7,8 @@ export const GET = withRateLimit(async (request: NextRequest) => {
   const params = request.nextUrl.searchParams;
   const severity = params.get("severity")?.trim();
   const warehouse = params.get("warehouse")?.trim();
+  const checkId = params.get("check_id")?.trim();
+  const resolution = params.get("resolution")?.trim().toLowerCase() ?? "open";
 
   const supabase = getSupabaseAdminClient();
 
@@ -15,14 +17,22 @@ export const GET = withRateLimit(async (request: NextRequest) => {
   let query = supabase
     .from("data_quality_issues")
     .select("*")
-    .is("resolved_at", null)
     .order("detected_at", { ascending: false });
+
+  if (resolution === "open") {
+    query = query.is("resolved_at", null);
+  } else if (resolution === "resolved") {
+    query = query.not("resolved_at", "is", null);
+  }
 
   if (severity) {
     query = query.eq("severity", severity);
   }
   if (warehouse) {
     query = query.eq("warehouse_code", warehouse);
+  }
+  if (checkId) {
+    query = query.eq("check_id", checkId);
   }
 
   const { data, error } = await query;

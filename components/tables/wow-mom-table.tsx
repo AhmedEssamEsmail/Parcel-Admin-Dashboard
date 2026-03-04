@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 
 type PeriodChange = {
   total_placed: { value: number; pct: number };
@@ -9,6 +9,7 @@ type PeriodChange = {
 };
 
 type PeriodRow = {
+  warehouse_code: string;
   total_placed: number;
   total_delivered: number;
   on_time: number;
@@ -22,9 +23,16 @@ type PeriodRow = {
   changes: PeriodChange | null;
 };
 
+type WarehouseGroup = {
+  warehouse_code: string;
+  warehouse_name: string;
+  periods: PeriodRow[];
+};
+
 type WowMomResponse = {
   period_type: "week" | "month";
   periods: PeriodRow[];
+  groups?: WarehouseGroup[];
 };
 
 type WowMomTableProps = {
@@ -37,6 +45,20 @@ export function WowMomTable({ warehouse, initialData }: WowMomTableProps) {
   const [data, setData] = useState<WowMomResponse | null>(initialData ?? null);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      const raw = window.localStorage.getItem("wow-collapsed-groups-v1");
+      if (!raw) return {};
+      return JSON.parse(raw) as Record<string, boolean>;
+    } catch {
+      return {};
+    }
+  });
+
+  useEffect(() => {
+    window.localStorage.setItem("wow-collapsed-groups-v1", JSON.stringify(collapsedGroups));
+  }, [collapsedGroups]);
 
   useEffect(() => {
     const load = async () => {
@@ -51,7 +73,12 @@ export function WowMomTable({ warehouse, initialData }: WowMomTableProps) {
     void load();
   }, [warehouse, viewType]);
 
-  if (!data?.periods) return null;
+  const isGroupedByWarehouse = useMemo(
+    () => warehouse === "ALL" && (data?.groups?.length ?? 0) > 0,
+    [warehouse, data?.groups],
+  );
+
+  if (!data?.periods && !data?.groups) return null;
 
   return (
     <div className="wow-mom-table">
@@ -94,31 +121,85 @@ export function WowMomTable({ warehouse, initialData }: WowMomTableProps) {
               </tr>
             </thead>
             <tbody>
-              {data.periods.map((period, idx) => (
-                <tr key={`${period.week_start ?? period.month_start}-${idx}`}>
-                  <td className="period-label">
-                    {viewType === "week" ? period.week_label : period.month_label}
-                  </td>
-                  <td>{period.total_placed}</td>
-                  <td>{period.total_delivered}</td>
-                  <td className="on-time">{period.on_time}</td>
-                  <td className="late">{period.late}</td>
-                  <td className={getOtdClass(period.otd_pct)}>
-                    {period.otd_pct?.toFixed(1) ?? "-"}%
-                  </td>
-                  <td>{formatTime(period.avg_delivery_minutes)}</td>
-                  <td className={getChangeClass(period.changes)}>
-                    {period.changes ? (
-                      <span className="otd-change">
-                        {period.changes.otd_pct.direction === "up" ? "↑" : "↓"}
-                        {Math.abs(period.changes.otd_pct.value).toFixed(1)}%
-                      </span>
-                    ) : (
-                      "-"
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {isGroupedByWarehouse
+                ? (data.groups ?? []).map((group) => {
+                    const isCollapsed = collapsedGroups[group.warehouse_code] ?? false;
+
+                    return (
+                      <FragmentGroup key={group.warehouse_code}>
+                        <tr className="warehouse-group-row">
+                          <td colSpan={8}>
+                            <button
+                              className="warehouse-collapse-btn"
+                              type="button"
+                              onClick={() =>
+                                setCollapsedGroups((current) => ({
+                                  ...current,
+                                  [group.warehouse_code]: !isCollapsed,
+                                }))
+                              }
+                            >
+                              <span>{isCollapsed ? "▶" : "▼"}</span>
+                              <strong>{group.warehouse_name}</strong>
+                              <span className="warehouse-group-code">({group.warehouse_code})</span>
+                            </button>
+                          </td>
+                        </tr>
+
+                        {!isCollapsed &&
+                          group.periods.map((period, idx) => (
+                            <tr key={`${group.warehouse_code}-${period.week_start ?? period.month_start}-${idx}`}>
+                              <td className="period-label">
+                                {viewType === "week" ? period.week_label : period.month_label}
+                              </td>
+                              <td>{period.total_placed}</td>
+                              <td>{period.total_delivered}</td>
+                              <td className="on-time">{period.on_time}</td>
+                              <td className="late">{period.late}</td>
+                              <td className={getOtdClass(period.otd_pct)}>
+                                {period.otd_pct === null ? "-" : `${period.otd_pct.toFixed(1)}%`}
+                              </td>
+                              <td>{formatTime(period.avg_delivery_minutes)}</td>
+                              <td className={getChangeClass(period.changes)}>
+                                {period.changes ? (
+                                  <span className="otd-change">
+                                    {period.changes.otd_pct.direction === "up" ? "↑" : "↓"}
+                                    {Math.abs(period.changes.otd_pct.value).toFixed(1)}%
+                                  </span>
+                                ) : (
+                                  "-"
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                      </FragmentGroup>
+                    );
+                  })
+                : (data.periods ?? []).map((period, idx) => (
+                    <tr key={`${period.week_start ?? period.month_start}-${idx}`}>
+                      <td className="period-label">
+                        {viewType === "week" ? period.week_label : period.month_label}
+                      </td>
+                      <td>{period.total_placed}</td>
+                      <td>{period.total_delivered}</td>
+                      <td className="on-time">{period.on_time}</td>
+                      <td className="late">{period.late}</td>
+                      <td className={getOtdClass(period.otd_pct)}>
+                        {period.otd_pct === null ? "-" : `${period.otd_pct.toFixed(1)}%`}
+                      </td>
+                      <td>{formatTime(period.avg_delivery_minutes)}</td>
+                      <td className={getChangeClass(period.changes)}>
+                        {period.changes ? (
+                          <span className="otd-change">
+                            {period.changes.otd_pct.direction === "up" ? "↑" : "↓"}
+                            {Math.abs(period.changes.otd_pct.value).toFixed(1)}%
+                          </span>
+                        ) : (
+                          "-"
+                        )}
+                      </td>
+                    </tr>
+                  ))}
             </tbody>
           </table>
         </div>
@@ -129,7 +210,7 @@ export function WowMomTable({ warehouse, initialData }: WowMomTableProps) {
           type="button"
           onClick={() => {
             setExporting(true);
-            window.location.href = `/api/export/csv?type=wow&warehouse=${warehouse}`;
+            window.location.href = `/api/export/csv?type=wow&warehouse=${warehouse}&periodType=${viewType}`;
             setTimeout(() => setExporting(false), 1500);
           }}
           disabled={exporting}
@@ -139,6 +220,10 @@ export function WowMomTable({ warehouse, initialData }: WowMomTableProps) {
       </div>
     </div>
   );
+}
+
+function FragmentGroup({ children }: { children: ReactNode }) {
+  return <>{children}</>;
 }
 
 function getOtdClass(otd: number | null): string {

@@ -1,5 +1,14 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Project Specs
+
+- Enhancements v3 audit: `Specs/Enhancements-v3/Raw-Delivery-Stages-Calculation-Audit.md`
+- Enhancements v4 requirements: `Specs/Enhancements-v4/Requirements.md`
+- Enhancements v4 design: `Specs/Enhancements-v4/Design.md`
+- Enhancements v4 tasks: `Specs/Enhancements-v4/Tasks.md`
+- Enhancements v4 runbook: `Specs/Enhancements-v4/Runbook-Backfill-and-Uploads.md`
+- Enhancements v4 metric dictionary: `Specs/Enhancements-v4/Metric-Dictionary.md`
+
 ## Getting Started
 
 First, run the development server:

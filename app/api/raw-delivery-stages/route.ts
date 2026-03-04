@@ -20,6 +20,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
   const city = params.get("city")?.trim();
   const area = params.get("area")?.trim();
   const opsIssue = params.get("ops_issue")?.trim();
+  const timingSource = params.get("timing_source")?.trim();
   const deliveryScope = (params.get("delivery_scope")?.trim() || "delivered") as RawDeliveryScope;
 
   const limit = Math.min(
@@ -45,7 +46,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
   const supabase = getSupabaseAdminClient();
 
   let query = supabase
-    .from("v_raw_delivery_stages")
+    .from("v_raw_delivery_stages_with_source")
     .select("*", { count: "exact" })
     .eq("warehouse", warehouse)
     .gte("order_date", from)
@@ -97,6 +98,10 @@ export const GET = withRateLimit(async (request: NextRequest) => {
 
   if (opsIssue) {
     query = query.eq("ops_exceeded_30_mins", opsIssue);
+  }
+
+  if (timingSource) {
+    query = query.eq("timing_source", timingSource);
   }
 
   const { data, error, count } = await query.range(offset, offset + limit - 1);

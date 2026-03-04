@@ -4,10 +4,13 @@ import { withRateLimit } from "@/lib/middleware/rate-limit";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 
 type PeriodRow = {
+  warehouse_code: string;
   total_placed: number;
   total_delivered: number;
   on_time: number;
-  late: number;
+  late: number | null;
+  wa_count: number | null;
+  wa_delivered_count: number | null;
   otd_pct: number | null;
   avg_delivery_minutes: number | null;
   week_start?: string;
@@ -16,57 +19,41 @@ type PeriodRow = {
   month_label?: string;
 };
 
-export const GET = withRateLimit(async (request: NextRequest) => {
-  const params = request.nextUrl.searchParams;
-  const warehouse = params.get("warehouse")?.trim().toUpperCase();
-  const periodType = params.get("periodType")?.trim() || "week";
-  const limit = Number.parseInt(params.get("limit") || "4", 10);
-
-  if (!warehouse) {
-    return NextResponse.json(
-      { error: "warehouse query param is required" },
-      { status: 400 },
-    );
-  }
-
-  const supabase = getSupabaseAdminClient();
-  const viewName = periodType === "month" ? "v_mom_summary" : "v_wow_summary";
-  const dateColumn = periodType === "month" ? "month_start" : "week_start";
-
-  const { data, error } = await supabase
-    .from(viewName)
-    .select("*")
-    .eq("warehouse_code", warehouse)
-    .order(dateColumn, { ascending: false })
-    .limit(limit);
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  const withChanges = addPeriodChanges(data ?? []);
-
-  return NextResponse.json({
-    period_type: periodType,
-    periods: withChanges,
-  });
-});
-
 type PeriodChange = {
   total_placed: { value: number; pct: number };
   otd_pct: { value: number; direction: "up" | "down" };
   avg_delivery_minutes: { value: number; direction: "improved" | "worse" };
 };
 
-type PeriodWithChanges = PeriodRow & { changes: PeriodChange | null };
+type PeriodWithChanges = Omit<PeriodRow, "late"> & {
+  late: number;
+  changes: PeriodChange | null;
+};
+
+type WarehouseGroup = {
+  warehouse_code: string;
+  warehouse_name: string;
+  periods: PeriodWithChanges[];
+};
+
+function withLateFallback(row: PeriodRow): PeriodWithChanges {
+  const late = row.late ?? Math.max((row.total_delivered ?? 0) - (row.on_time ?? 0), 0);
+  return {
+    ...row,
+    late,
+    changes: null,
+  };
+}
 
 function addPeriodChanges(data: PeriodRow[]): PeriodWithChanges[] {
-  return data.map((row, idx) => {
-    if (idx === data.length - 1) {
+  const normalized = data.map(withLateFallback);
+
+  return normalized.map((row, idx) => {
+    if (idx === normalized.length - 1) {
       return { ...row, changes: null };
     }
 
-    const prev = data[idx + 1];
+    const prev = normalized[idx + 1];
     return {
       ...row,
       changes: {
@@ -92,3 +79,149 @@ function addPeriodChanges(data: PeriodRow[]): PeriodWithChanges[] {
     };
   });
 }
+
+export const GET = withRateLimit(async (request: NextRequest) => {
+  const params = request.nextUrl.searchParams;
+  const warehouse = params.get("warehouse")?.trim().toUpperCase();
+  const requestedPeriodType = params.get("periodType")?.trim().toLowerCase();
+  const periodType = requestedPeriodType === "month" ? "month" : "week";
+  const limit = Math.min(
+    24,
+    Math.max(1, Number.parseInt(params.get("limit") || "6", 10) || 6),
+  );
+
+  if (!warehouse) {
+    return NextResponse.json(
+      { error: "warehouse query param is required" },
+      { status: 400 },
+    );
+  }
+
+  const supabase = getSupabaseAdminClient();
+  const viewName = periodType === "month" ? "v_mom_summary" : "v_wow_summary";
+  const dateColumn = periodType === "month" ? "month_start" : "week_start";
+
+  const { data: fastRows, error: fastError } = await supabase.rpc("get_wow_summary_fast", {
+    p_warehouse_code: warehouse,
+    p_period_type: periodType,
+    p_limit: limit,
+  });
+
+  if (!fastError && Array.isArray(fastRows) && fastRows.length > 0) {
+    const adaptedRows = fastRows.map((row) => ({
+      warehouse_code: row.warehouse_code,
+      total_placed: Number(row.total_placed ?? 0),
+      total_delivered: Number(row.total_delivered ?? 0),
+      on_time: Number(row.on_time ?? 0),
+      late: Number(row.late ?? 0),
+      wa_count: Number(row.wa_count ?? 0),
+      wa_delivered_count: Number(row.wa_delivered_count ?? 0),
+      otd_pct: row.otd_pct === null ? null : Number(row.otd_pct),
+      avg_delivery_minutes:
+        row.avg_delivery_minutes === null ? null : Number(row.avg_delivery_minutes),
+      week_start: periodType === "week" ? row.period_start : undefined,
+      week_label: periodType === "week" ? row.period_label : undefined,
+      month_start: periodType === "month" ? row.period_start : undefined,
+      month_label: periodType === "month" ? row.period_label : undefined,
+    })) as PeriodRow[];
+
+    if (warehouse !== "ALL") {
+      const periods = addPeriodChanges(adaptedRows.slice(0, limit));
+      return NextResponse.json({ period_type: periodType, periods });
+    }
+
+    const [{ data: warehouseData, error: warehouseError }] = await Promise.all([
+      supabase.from("warehouses").select("code,name"),
+    ]);
+
+    if (warehouseError) {
+      return NextResponse.json({ error: warehouseError.message }, { status: 500 });
+    }
+
+    const warehouseNameByCode = new Map<string, string>(
+      (warehouseData ?? []).map((item) => [item.code, item.name]),
+    );
+    const grouped = new Map<string, PeriodRow[]>();
+    for (const row of adaptedRows) {
+      const bucket = grouped.get(row.warehouse_code) ?? [];
+      bucket.push(row);
+      grouped.set(row.warehouse_code, bucket);
+    }
+
+    const groups: WarehouseGroup[] = Array.from(grouped.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([warehouseCode, rows]) => ({
+        warehouse_code: warehouseCode,
+        warehouse_name: warehouseNameByCode.get(warehouseCode) ?? warehouseCode,
+        periods: addPeriodChanges(rows.slice(0, limit)),
+      }));
+
+    return NextResponse.json({
+      period_type: periodType,
+      periods: [],
+      groups,
+    });
+  }
+
+  if (warehouse !== "ALL") {
+    const { data, error } = await supabase
+      .from(viewName)
+      .select("*")
+      .eq("warehouse_code", warehouse)
+      .order(dateColumn, { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    const periods = addPeriodChanges((data ?? []) as PeriodRow[]);
+    return NextResponse.json({
+      period_type: periodType,
+      periods,
+    });
+  }
+
+  const [{ data: periodData, error: periodError }, { data: warehouseData, error: warehouseError }] =
+    await Promise.all([
+      supabase
+        .from(viewName)
+        .select("*")
+        .order("warehouse_code", { ascending: true })
+        .order(dateColumn, { ascending: false }),
+      supabase.from("warehouses").select("code,name"),
+    ]);
+
+  if (periodError) {
+    return NextResponse.json({ error: periodError.message }, { status: 500 });
+  }
+
+  if (warehouseError) {
+    return NextResponse.json({ error: warehouseError.message }, { status: 500 });
+  }
+
+  const warehouseNameByCode = new Map<string, string>(
+    (warehouseData ?? []).map((item) => [item.code, item.name]),
+  );
+
+  const grouped = new Map<string, PeriodRow[]>();
+  for (const row of (periodData ?? []) as PeriodRow[]) {
+    const bucket = grouped.get(row.warehouse_code) ?? [];
+    bucket.push(row);
+    grouped.set(row.warehouse_code, bucket);
+  }
+
+  const groups: WarehouseGroup[] = Array.from(grouped.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([warehouseCode, rows]) => ({
+      warehouse_code: warehouseCode,
+      warehouse_name: warehouseNameByCode.get(warehouseCode) ?? warehouseCode,
+      periods: addPeriodChanges(rows.slice(0, limit)),
+    }));
+
+  return NextResponse.json({
+    period_type: periodType,
+    periods: [],
+    groups,
+  });
+});
