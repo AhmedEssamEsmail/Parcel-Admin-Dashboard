@@ -1,4 +1,4 @@
-# Parcel Admin Dashboard — v7 Tasks (Codex checklist)
+# Parcel Admin Dashboard — v8 Tasks (Codex checklist)
 
 ## How to use this file
 - Each sprint has small tasks with a clear “done when” checklist.
