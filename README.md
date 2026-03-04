@@ -1,45 +1,76 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Parcel Admin Dashboard
 
-## Project Specs
+Operations dashboard for parcel delivery performance, raw stage auditing, data quality monitoring, and CSV-based ingestion.
 
-- Enhancements v3 audit: `Specs/Enhancements-v3/Raw-Delivery-Stages-Calculation-Audit.md`
-- Enhancements v4 requirements: `Specs/Enhancements-v4/Requirements.md`
-- Enhancements v4 design: `Specs/Enhancements-v4/Design.md`
-- Enhancements v4 tasks: `Specs/Enhancements-v4/Tasks.md`
-- Enhancements v4 runbook: `Specs/Enhancements-v4/Runbook-Backfill-and-Uploads.md`
-- Enhancements v4 metric dictionary: `Specs/Enhancements-v4/Metric-Dictionary.md`
+## Current Scope
 
-## Getting Started
+- Dashboard KPIs (DOD, WoW/MoM, WA metrics, charting)
+- Raw Delivery Stages table with operational filters
+- Data Quality monitor with issue detection + resolution flow
+- Upload pipeline for operational datasets
+- Settings/schedule management APIs
 
-First, run the development server:
+## Major Implemented Enhancements
+
+### v3
+- Raw Delivery Stages calculation alignment and audit artifact
+- WA Orders source integration
+- Delivery Timing Rules source integration
+- WoW/MoM late metric fixes + grouped warehouse view
+- WA Delivered % chart line
+
+### v4
+- Parcel Logs blank timestamp fill-forward (ingest normalizer)
+- Ingest observability (`ingest_runs`, health API, dashboard widget)
+- Data quality guardrails expansion
+- Performance indexes + WoW fast-path RPC
+- UX polish and updated ops/spec docs
+
+## Key Pages
+
+- `/dashboard`
+- `/raw-delivery-stages`
+- `/data-quality`
+- `/upload`
+- `/settings`
+- `/schedule`
+
+## Upload Datasets
+
+- `delivery_details`
+- `parcel_logs`
+- `items_per_order` (optional)
+- `collectors_report` (optional)
+- `prepare_report` (optional)
+- `freshdesk_tickets` (optional)
+- `wa_orders` (optional)
+- `delivery_timing_rules` (optional)
+
+## Specs & Documentation
+
+- `Specs/Enhancements-v3/Raw-Delivery-Stages-Calculation-Audit.md`
+- `Specs/Enhancements-v4/Requirements.md`
+- `Specs/Enhancements-v4/Design.md`
+- `Specs/Enhancements-v4/Tasks.md`
+- `Specs/Enhancements-v4/Runbook-Backfill-and-Uploads.md`
+- `Specs/Enhancements-v4/Metric-Dictionary.md`
+
+## Local Development
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open: `http://localhost:3000`
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Validation Commands (required order)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run build
+npm run validate
+npm run test:run
+npm run test:integration
+npm run type-check
+npm run lint
+```
