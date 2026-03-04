@@ -145,7 +145,7 @@ export function WowMomTable({ warehouse, from, to, initialData }: WowMomTablePro
                     return (
                       <FragmentGroup key={group.warehouse_code}>
                         <tr className="warehouse-group-row">
-                          <td colSpan={8}>
+                          <td className="period-label">
                             <button
                               className="warehouse-collapse-btn"
                               type="button"
@@ -160,23 +160,18 @@ export function WowMomTable({ warehouse, from, to, initialData }: WowMomTablePro
                               <strong>{group.warehouse_name}</strong>
                               <span className="warehouse-group-code">({group.warehouse_code})</span>
                             </button>
+                            <div className="warehouse-group-inline-note">Selected Range Total</div>
                           </td>
+                          <td>{formatCount(collapsedSummary.total_placed)}</td>
+                          <td>{formatCount(collapsedSummary.total_delivered)}</td>
+                          <td className="on-time">{formatCount(collapsedSummary.on_time)}</td>
+                          <td className="late">{formatCount(collapsedSummary.late)}</td>
+                          <td className={getOtdClass(collapsedSummary.otd_pct)}>
+                            {formatPercent(collapsedSummary.otd_pct)}
+                          </td>
+                          <td>{formatTime(collapsedSummary.avg_delivery_minutes)}</td>
+                          <td>-</td>
                         </tr>
-
-                        {isCollapsed && (
-                          <tr className="warehouse-collapsed-summary-row">
-                            <td className="period-label">Selected Range Total</td>
-                            <td>{formatCount(collapsedSummary.total_placed)}</td>
-                            <td>{formatCount(collapsedSummary.total_delivered)}</td>
-                            <td className="on-time">{formatCount(collapsedSummary.on_time)}</td>
-                            <td className="late">{formatCount(collapsedSummary.late)}</td>
-                            <td className={getOtdClass(collapsedSummary.otd_pct)}>
-                              {formatPercent(collapsedSummary.otd_pct)}
-                            </td>
-                            <td>{formatTime(collapsedSummary.avg_delivery_minutes)}</td>
-                            <td>-</td>
-                          </tr>
-                        )}
 
                         {!isCollapsed &&
                           group.periods.map((period, idx) => (

@@ -111,7 +111,6 @@ select
   end as otd_pct_inc_wa,
   count(distinct parcel_id) filter (where delivered_ts is not null and is_on_time is null) as null_on_time_count,
   count(distinct parcel_id) filter (where waiting_address) as wa_count,
-  count(distinct parcel_id) filter (where waiting_address and delivered_ts is not null) as wa_delivered_count,
   count(distinct parcel_id) filter (where not waiting_address or waiting_address is null) as total_placed_exc_wa,
   count(distinct parcel_id) filter (where delivered_ts is not null and (not waiting_address or waiting_address is null)) as total_delivered_exc_wa,
   count(distinct parcel_id) filter (where is_on_time is true and (not waiting_address or waiting_address is null)) as on_time_exc_wa,
@@ -122,7 +121,8 @@ select
       / (count(distinct parcel_id) filter (where delivered_ts is not null and (not waiting_address or waiting_address is null)))::numeric
       * 100, 2
     )
-  end as otd_pct_exc_wa
+  end as otd_pct_exc_wa,
+  count(distinct parcel_id) filter (where waiting_address and delivered_ts is not null) as wa_delivered_count
 from base_data
 group by warehouse_code, day
 order by warehouse_code, day;
@@ -365,11 +365,7 @@ select
   count(distinct parcel_id) as total_placed,
   count(distinct parcel_id) filter (where delivered_ts is not null) as total_delivered,
   count(distinct parcel_id) filter (where is_on_time is true) as on_time,
-  count(distinct parcel_id) filter (
-    where delivered_ts is not null and (is_on_time is false or is_on_time is null)
-  ) as late,
   count(distinct parcel_id) filter (where waiting_address is true) as wa_count,
-  count(distinct parcel_id) filter (where waiting_address is true and delivered_ts is not null) as wa_delivered_count,
   round(
     avg(extract(epoch from (delivered_ts - order_ts_utc)) / 60)
       filter (where delivered_ts is not null)::numeric,
@@ -383,7 +379,11 @@ select
       2
     )
   end as otd_pct,
-  'week' as period_type
+  'week' as period_type,
+  count(distinct parcel_id) filter (
+    where delivered_ts is not null and (is_on_time is false or is_on_time is null)
+  ) as late,
+  count(distinct parcel_id) filter (where waiting_address is true and delivered_ts is not null) as wa_delivered_count
 from week_calc
 group by warehouse_code, week_start
 order by warehouse_code, week_start desc;
@@ -397,11 +397,7 @@ select
   count(distinct parcel_id) as total_placed,
   count(distinct parcel_id) filter (where delivered_ts is not null) as total_delivered,
   count(distinct parcel_id) filter (where is_on_time is true) as on_time,
-  count(distinct parcel_id) filter (
-    where delivered_ts is not null and (is_on_time is false or is_on_time is null)
-  ) as late,
   count(distinct parcel_id) filter (where waiting_address is true) as wa_count,
-  count(distinct parcel_id) filter (where waiting_address is true and delivered_ts is not null) as wa_delivered_count,
   round(
     avg(extract(epoch from (delivered_ts - order_ts_utc)) / 60)
       filter (where delivered_ts is not null)::numeric,
@@ -415,7 +411,11 @@ select
       2
     )
   end as otd_pct,
-  'month' as period_type
+  'month' as period_type,
+  count(distinct parcel_id) filter (
+    where delivered_ts is not null and (is_on_time is false or is_on_time is null)
+  ) as late,
+  count(distinct parcel_id) filter (where waiting_address is true and delivered_ts is not null) as wa_delivered_count
 from public.v_parcel_kpi
 group by warehouse_code, date_trunc('month', created_date_local)
 order by warehouse_code, month_start desc;

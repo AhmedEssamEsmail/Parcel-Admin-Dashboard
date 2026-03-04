@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { AppNav } from "@/components/layout/nav";
@@ -80,6 +81,18 @@ export default function SettingsPage() {
         <h1>Settings</h1>
         <p className="muted">Configure SLA, shift windows, and holiday overrides.</p>
       </header>
+
+      <section className="card">
+        <h3>Settings Sub-pages</h3>
+        <div className="btn-row" style={{ marginTop: 8 }}>
+          <Link className="btn-ghost" href="/settings/upload">
+            Upload
+          </Link>
+          <Link className="btn-ghost" href="/settings/schedule">
+            Schedule
+          </Link>
+        </div>
+      </section>
 
       <nav className="tabs">
         <button
