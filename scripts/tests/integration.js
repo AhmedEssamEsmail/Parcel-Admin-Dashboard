@@ -118,8 +118,53 @@ test("rateLimitWithClient enforces threshold and returns 429 with expected heade
   assert.equal(third.headers.get("X-RateLimit-Limit"), "100");
   assert.equal(third.headers.get("X-RateLimit-Remaining"), "0");
   assert.equal(third.headers.get("X-RateLimit-Reset"), "2000000000");
+  assert.match(third.headers.get("Retry-After"), /^\d+$/);
   assert.equal(client.lastKey, "203.0.113.9:/api/compare-periods");
   assert.equal(client.callCount, 3);
+});
+
+test("rateLimitWithClient applies elevated request cap for /api/ingest", async () => {
+  const { rateLimitWithClient } = loadTsModule("lib/middleware/rate-limit.ts", [
+    {
+      from: 'import { NextRequest, NextResponse } from "next/server.js";',
+      to: [
+        "const NextRequest = class NextRequest {};",
+        "class HeaderBag {",
+        "  constructor(entries = {}) {",
+        "    this.map = new Map();",
+        "    for (const [k, v] of Object.entries(entries)) this.map.set(String(k).toLowerCase(), String(v));",
+        "  }",
+        "  get(name) { return this.map.get(String(name).toLowerCase()) ?? null; }",
+        "}",
+        "const NextResponse = {",
+        "  json: (body, init = {}) => ({",
+        "    body,",
+        "    status: init.status ?? 200,",
+        "    headers: new HeaderBag(init.headers ?? {}),",
+        "  }),",
+        "};",
+      ].join(" "),
+    },
+    {
+      from: 'import { getSupabaseAdminClient } from "../supabase/server";',
+      to: "const getSupabaseAdminClient = () => ({ rpc: async () => ({ data: [{ allowed: true, remaining: 99, reset_epoch: 0 }], error: null }) });",
+    },
+  ]);
+
+  const request = makeRequest({
+    forwardedFor: "203.0.113.9, 10.0.0.3",
+    pathname: "/api/ingest",
+  });
+
+  const client = makeRateLimitRpcMock({ maxRequests: 1, resetEpoch: 2000000000 });
+  const first = await rateLimitWithClient(request, client);
+  const second = await rateLimitWithClient(request, client);
+
+  assert.equal(first, null);
+  assert.ok(second);
+  assert.equal(second.status, 429);
+  assert.equal(second.headers.get("X-RateLimit-Limit"), "600");
+  assert.equal(client.lastArgs.p_max_requests, 600);
 });
 
 test("export API supports new dataset types", () => {
@@ -173,19 +218,22 @@ function makeRateLimitRpcMock({ maxRequests, resetEpoch }) {
   return {
     callCount: 0,
     lastKey: "",
+    lastArgs: null,
     async rpc(fn, args) {
       assert.equal(fn, "check_rate_limit");
       this.callCount += 1;
       this.lastKey = args.p_key;
+      this.lastArgs = args;
 
       const current = (counters.get(args.p_key) ?? 0) + 1;
       counters.set(args.p_key, current);
+      const threshold = Number.isFinite(maxRequests) ? maxRequests : args.p_max_requests;
 
       return {
         data: [
           {
-            allowed: current <= maxRequests,
-            remaining: Math.max(maxRequests - current, 0),
+            allowed: current <= threshold,
+            remaining: Math.max(threshold - current, 0),
             reset_epoch: resetEpoch,
           },
         ],

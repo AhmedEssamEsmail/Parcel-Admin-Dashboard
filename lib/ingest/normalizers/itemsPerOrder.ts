@@ -30,7 +30,12 @@ export function normalizeItemsPerOrderRows(rows: CsvRow[]): {
       parcel_id: parcelId,
       item_count: itemCountRaw === null ? null : Math.trunc(itemCountRaw),
       created_ts: parseWarehouseDateToIso(
-        getField(row, ["datetime of cdate_kuwait", "Datetime of CDate_Kuwait", "created_ts"]),
+        getField(row, [
+          "datetime of cdate_kuwait",
+          "Datetime of CDate_Kuwait",
+          "cdate_kuwait",
+          "created_ts",
+        ]),
       ),
     });
   });
