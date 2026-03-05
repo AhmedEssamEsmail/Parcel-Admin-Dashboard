@@ -57,6 +57,19 @@ test("rate-limit middleware uses Supabase RPC and no referer bypass", () => {
   assert.ok(!source.includes('request.headers.get("referer")'));
 });
 
+test("getField normalizes punctuation/spacing/case while resolving headers", () => {
+  const { getField } = loadTsModule("lib/ingest/normalizers/helpers.ts", []);
+  const row = {
+    Parcel_Date: "2026-02-08 18:06:13",
+    Start_time: "2026-01-20 8:11:47",
+    "Duration(min)": "2.2",
+  };
+
+  assert.equal(getField(row, ["parcel date"]), "2026-02-08 18:06:13");
+  assert.equal(getField(row, ["start time"]), "2026-01-20 8:11:47");
+  assert.equal(getField(row, ["duration_min"]), "2.2");
+});
+
 test("new operations routes and nav links exist", () => {
   assert.ok(fs.existsSync(path.resolve(__dirname, "..", "..", "app/api/exceptions/route.ts")));
   assert.ok(fs.existsSync(path.resolve(__dirname, "..", "..", "app/api/promise-reliability/route.ts")));

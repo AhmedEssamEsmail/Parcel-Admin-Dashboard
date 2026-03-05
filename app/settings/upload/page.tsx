@@ -27,6 +27,31 @@ type UploadIssue = {
   message: string;
 };
 
+type IngestApiPayload = {
+  insertedCount?: number;
+  ignoredCount?: number;
+  error?: string;
+};
+
+type IngestChunkRequest = {
+  warehouseCode: string;
+  datasetType: DatasetType;
+  rows: unknown[];
+  fileName: string;
+  parsedCount: number;
+  warningCount: number;
+  errorCount: number;
+};
+
+type IngestChunkResult =
+  | { ok: true; payload: IngestApiPayload }
+  | {
+      ok: false;
+      status: number;
+      payload: IngestApiPayload;
+      retryAfterSeconds: number | null;
+    };
+
 const DATASET_HINTS: Array<{ type: DatasetType; hints: string[] }> = [
   { type: "delivery_details", hints: ["delivery details", "delivery detail"] },
   { type: "parcel_logs", hints: ["parcel logs", "parcel log"] },
@@ -64,6 +89,10 @@ const WAREHOUSE_COUNTRY_LABELS: Record<string, string> = {
 };
 
 const DATASET_LABEL_MAP = new Map(DATASET_OPTIONS.map((item) => [item.value, item.label]));
+const INGEST_CHUNK_SIZE = 3000;
+const INGEST_MAX_ATTEMPTS = 4;
+const INGEST_RETRY_BASE_DELAY_MS = 1000;
+const INGEST_RETRY_MAX_DELAY_MS = 10_000;
 
 function chunkArray<T>(items: T[], chunkSize: number): T[][] {
   const chunks: T[][] = [];
@@ -71,6 +100,112 @@ function chunkArray<T>(items: T[], chunkSize: number): T[][] {
     chunks.push(items.slice(i, i + chunkSize));
   }
   return chunks;
+}
+
+function parseRetryAfterSeconds(value: string | null): number | null {
+  if (!value) return null;
+
+  const numericSeconds = Number.parseInt(value, 10);
+  if (Number.isFinite(numericSeconds) && numericSeconds >= 0) {
+    return numericSeconds;
+  }
+
+  const retryAtMs = Date.parse(value);
+  if (Number.isNaN(retryAtMs)) return null;
+
+  return Math.max(0, Math.ceil((retryAtMs - Date.now()) / 1000));
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function readIngestPayload(response: Response): Promise<IngestApiPayload> {
+  try {
+    return (await response.json()) as IngestApiPayload;
+  } catch {
+    return {};
+  }
+}
+
+async function postIngestChunkWithRetry(body: IngestChunkRequest): Promise<IngestChunkResult> {
+  let lastStatus = 500;
+  let lastPayload: IngestApiPayload = {};
+  let lastRetryAfterSeconds: number | null = null;
+
+  for (let attempt = 1; attempt <= INGEST_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      const response = await fetch("/api/ingest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const payload = await readIngestPayload(response);
+
+      if (response.ok) {
+        return {
+          ok: true,
+          payload,
+        };
+      }
+
+      const retryAfterSeconds = parseRetryAfterSeconds(response.headers.get("Retry-After"));
+      lastStatus = response.status;
+      lastPayload = payload;
+      lastRetryAfterSeconds = retryAfterSeconds;
+
+      const canRetry = response.status === 429 && attempt < INGEST_MAX_ATTEMPTS;
+      if (!canRetry) {
+        return {
+          ok: false,
+          status: response.status,
+          payload,
+          retryAfterSeconds,
+        };
+      }
+
+      const fallbackDelayMs = Math.min(
+        INGEST_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1),
+        INGEST_RETRY_MAX_DELAY_MS,
+      );
+      const retryDelayMs =
+        retryAfterSeconds !== null
+          ? Math.min(retryAfterSeconds * 1000, INGEST_RETRY_MAX_DELAY_MS)
+          : fallbackDelayMs;
+
+      await wait(retryDelayMs);
+    } catch (error) {
+      lastStatus = 0;
+      lastPayload = {
+        error: error instanceof Error ? error.message : "Network error while uploading chunk.",
+      };
+      lastRetryAfterSeconds = null;
+
+      if (attempt >= INGEST_MAX_ATTEMPTS) {
+        return {
+          ok: false,
+          status: 0,
+          payload: lastPayload,
+          retryAfterSeconds: null,
+        };
+      }
+
+      const fallbackDelayMs = Math.min(
+        INGEST_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1),
+        INGEST_RETRY_MAX_DELAY_MS,
+      );
+      await wait(fallbackDelayMs);
+    }
+  }
+
+  return {
+    ok: false,
+    status: lastStatus,
+    payload: lastPayload,
+    retryAfterSeconds: lastRetryAfterSeconds,
+  };
 }
 
 function toSearchable(value: string): string {
@@ -273,8 +408,11 @@ export function UploadPageContent({ embedded = false }: UploadPageContentProps) 
     let inserted = 0;
     let ignored = 0;
     let filesProcessed = 0;
+    let stoppedByRateLimit = false;
 
     for (const config of fileConfigs) {
+      if (stoppedByRateLimit) break;
+
       if (!config.ready || !config.datasetType) {
         continue;
       }
@@ -302,6 +440,8 @@ export function UploadPageContent({ embedded = false }: UploadPageContentProps) 
       });
 
       for (const [warehouseCode, rows] of groupedRows) {
+        if (stoppedByRateLimit) break;
+
         touchedWarehouses.add(warehouseCode);
 
         const {
@@ -330,40 +470,41 @@ export function UploadPageContent({ embedded = false }: UploadPageContentProps) 
           continue;
         }
 
-        const chunks = chunkArray(normalizedRows, 500);
+        const chunks = chunkArray(normalizedRows, INGEST_CHUNK_SIZE);
 
         for (const chunk of chunks) {
-          const response = await fetch("/api/ingest", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              warehouseCode,
-              datasetType: config.datasetType,
-              rows: chunk,
-              fileName: config.file.name,
-              parsedCount: rows.length,
-              warningCount: normalizeWarnings.length,
-              errorCount: normalizeErrors.length,
-            }),
+          const ingestResult = await postIngestChunkWithRetry({
+            warehouseCode,
+            datasetType: config.datasetType,
+            rows: chunk,
+            fileName: config.file.name,
+            parsedCount: rows.length,
+            warningCount: normalizeWarnings.length,
+            errorCount: normalizeErrors.length,
           });
 
-          const payload = (await response.json()) as {
-            insertedCount?: number;
-            ignoredCount?: number;
-            error?: string;
-          };
+          if (!ingestResult.ok) {
+            if (ingestResult.status === 429) {
+              const waitSeconds = ingestResult.retryAfterSeconds ?? 60;
+              uploadErrors.push({
+                fileName: config.file.name,
+                row: 0,
+                message: `Upload stopped due to API rate limit. Wait about ${waitSeconds} second(s), then retry.`,
+              });
+              stoppedByRateLimit = true;
+              break;
+            }
 
-          if (!response.ok) {
             uploadErrors.push({
               fileName: config.file.name,
               row: 0,
-              message: payload.error ?? "Ingestion failed.",
+              message: ingestResult.payload.error ?? "Ingestion failed.",
             });
             break;
           }
 
-          inserted += payload.insertedCount ?? 0;
-          ignored += payload.ignoredCount ?? 0;
+          inserted += ingestResult.payload.insertedCount ?? 0;
+          ignored += ingestResult.payload.ignoredCount ?? 0;
         }
       }
     }
