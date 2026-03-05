@@ -47,7 +47,7 @@ export default function LoginPage() {
     <main className="login-shell">
       <form className="login-card" onSubmit={onSubmit}>
         <h1>Parcel Admin Dashboard</h1>
-        <p className="muted">Enter the shared password to continue.</p>
+        <p className="muted">Enter your assigned password to continue.</p>
 
         <label>
           Password
