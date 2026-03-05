@@ -27,6 +27,10 @@ function emptyResponse(warning: string) {
     },
     recent_runs: [],
     daily: [],
+    freshness: {
+      stale_threshold_hours: 24,
+      matrix: [],
+    },
     warning,
   };
 }
@@ -44,7 +48,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
     .select("*")
     .gte("started_at", cutoffIso)
     .order("started_at", { ascending: false })
-    .limit(100);
+    .limit(500);
 
   if (warehouse && warehouse !== "ALL") {
     runsQuery = runsQuery.eq("warehouse_code", warehouse);
@@ -82,6 +86,10 @@ export const GET = withRateLimit(async (request: NextRequest) => {
         },
         recent_runs: rows,
         daily: [],
+        freshness: {
+          stale_threshold_hours: 24,
+          matrix: buildFreshnessMatrix(rows, 24),
+        },
         warning: "Daily ingest health view is not available in this environment.",
       });
     }
@@ -93,6 +101,8 @@ export const GET = withRateLimit(async (request: NextRequest) => {
   const warningRuns = rows.filter((row) => (row.warning_count ?? 0) > 0).length;
   const failedRuns = rows.filter((row) => row.status === "failed").length;
 
+  const staleThresholdHours = 24;
+
   return NextResponse.json({
     summary: {
       total_runs: totalRuns,
@@ -101,5 +111,48 @@ export const GET = withRateLimit(async (request: NextRequest) => {
     },
     recent_runs: rows,
     daily: daily ?? [],
+    freshness: {
+      stale_threshold_hours: staleThresholdHours,
+      matrix: buildFreshnessMatrix(rows, staleThresholdHours),
+    },
   });
 });
+
+function buildFreshnessMatrix(rows: Array<Record<string, unknown>>, staleThresholdHours: number) {
+  const latestByKey = new Map<string, Record<string, unknown>>();
+  for (const row of rows) {
+    const warehouseCode = String(row.warehouse_code ?? "UNKNOWN");
+    const dataset = String(row.dataset_type ?? "unknown_dataset");
+    const key = `${warehouseCode}__${dataset}`;
+    const existing = latestByKey.get(key);
+    if (!existing) {
+      latestByKey.set(key, row);
+      continue;
+    }
+
+    const existingTime = new Date(String(existing.finished_at ?? existing.started_at ?? 0)).getTime();
+    const currentTime = new Date(String(row.finished_at ?? row.started_at ?? 0)).getTime();
+    if (currentTime > existingTime) latestByKey.set(key, row);
+  }
+
+  return Array.from(latestByKey.values()).map((row) => {
+    const ts = new Date(String(row.finished_at ?? row.started_at ?? 0));
+    const ageHours = Number.isNaN(ts.getTime()) ? null : Number(((Date.now() - ts.getTime()) / 3600000).toFixed(2));
+    const status =
+      row.status === "failed"
+        ? "failed"
+        : ageHours === null
+          ? "unknown"
+          : ageHours > staleThresholdHours
+            ? "stale"
+            : "fresh";
+
+    return {
+      warehouse_code: String(row.warehouse_code ?? "UNKNOWN"),
+      dataset_type: String(row.dataset_type ?? "unknown_dataset"),
+      last_run_at: Number.isNaN(ts.getTime()) ? null : ts.toISOString(),
+      status,
+      age_hours: ageHours,
+    };
+  });
+}

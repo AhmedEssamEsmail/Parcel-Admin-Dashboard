@@ -26,7 +26,7 @@ export function MobileNav({ links, activePath, onLogout }: MobileNavProps) {
         aria-label="Toggle menu"
         type="button"
       >
-        {isOpen ? "✕" : "☰"}
+        {isOpen ? "X" : "?"}
       </button>
 
       {isOpen && (

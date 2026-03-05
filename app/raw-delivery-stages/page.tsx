@@ -1,9 +1,12 @@
-﻿"use client";
+"use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { GlobalFilters } from "@/components/filters/global-filters";
 import { AppNav } from "@/components/layout/nav";
-import { WAREHOUSE_CODES } from "@/lib/csv/mappings";
+import { useGlobalFilters } from "@/lib/filters/useGlobalFilters";
+import { buildParcelDetailHref } from "@/lib/navigation/links";
 import type { RawDeliveryScope, RawDeliveryStagesResponse } from "@/lib/table/rawDeliveryStages";
 import { formatDateMmmDd, formatDateTimeMmmDdHhMmSs } from "@/lib/utils/date-format";
 
@@ -11,12 +14,6 @@ type RawRow = Record<string, string | number | null>;
 
 const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const DATE_TIME_REGEX = /^\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}/;
-
-function todayOffset(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
-}
 
 const COLUMNS = [
   "warehouse",
@@ -69,9 +66,11 @@ const COLUMNS = [
 ] as const;
 
 export default function RawDeliveryStagesPage() {
-  const [warehouse, setWarehouse] = useState("KUWAIT");
-  const [from, setFrom] = useState(todayOffset(-45));
-  const [to, setTo] = useState(todayOffset(0));
+  const { filters, setFilters, appliedFilters, applyFilters } = useGlobalFilters({
+    warehouse: "KUWAIT",
+    fromOffsetDays: -45,
+  });
+
   const [deliveryScope, setDeliveryScope] = useState<RawDeliveryScope>("delivered");
   const [parcelId, setParcelId] = useState("");
   const [wa, setWa] = useState("all");
@@ -99,9 +98,9 @@ export default function RawDeliveryStagesPage() {
 
     try {
       const params = new URLSearchParams({
-        warehouse,
-        from,
-        to,
+        warehouse: appliedFilters.warehouse,
+        from: appliedFilters.from,
+        to: appliedFilters.to,
         delivery_scope: deliveryScope,
         limit: String(limit),
         offset: String(nextOffset),
@@ -141,9 +140,17 @@ export default function RawDeliveryStagesPage() {
   };
 
   useEffect(() => {
-    void load(0);
+    let active = true;
+    const runLoad = async () => {
+      if (!active) return;
+      await load(0);
+    };
+    void runLoad();
+    return () => {
+      active = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [appliedFilters]);
 
   useEffect(() => {
     if (!timingSourceSupported && timingSource !== "all") {
@@ -159,28 +166,16 @@ export default function RawDeliveryStagesPage() {
     <main className="page-wrap">
       <AppNav />
 
+      <GlobalFilters
+        filters={filters}
+        onChange={setFilters}
+        onApply={() => {
+          applyFilters();
+        }}
+        includeAllWarehouses={false}
+      />
+
       <section className="card grid three">
-        <label>
-          Warehouse
-          <select value={warehouse} onChange={(event) => setWarehouse(event.target.value)}>
-            {WAREHOUSE_CODES.map((code) => (
-              <option key={code} value={code}>
-                {code}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label>
-          From
-          <input type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
-        </label>
-
-        <label>
-          To
-          <input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
-        </label>
-
         <label>
           Delivery Scope
           <select
@@ -321,7 +316,11 @@ export default function RawDeliveryStagesPage() {
                 rows.map((row, index) => (
                   <tr key={`${row.parcel_id}-${index}`}>
                     {visibleColumns.map((column) => (
-                      <td key={column}>{formatRawCellValue(row[column])}</td>
+                      <td key={column}>
+                        {column === "parcel_id"
+                          ? renderParcelLink(row.warehouse, row.parcel_id)
+                          : formatRawCellValue(row[column])}
+                      </td>
                     ))}
                   </tr>
                 ))
@@ -348,3 +347,14 @@ function formatRawCellValue(value: string | number | null | undefined): string {
 
   return value;
 }
+
+function renderParcelLink(
+  warehouse: string | number | null | undefined,
+  parcelId: string | number | null | undefined,
+) {
+  const href = buildParcelDetailHref(typeof warehouse === "string" ? warehouse : null, parcelId);
+  if (!href) return formatRawCellValue(parcelId);
+  return <Link href={href}>{formatRawCellValue(parcelId)}</Link>;
+}
+
+

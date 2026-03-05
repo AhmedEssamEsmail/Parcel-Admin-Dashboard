@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { OnTimeComboChart } from "@/components/charts/on-time-combo";
+import { GlobalFilters } from "@/components/filters/global-filters";
 import { AppNav } from "@/components/layout/nav";
 import { DodSummaryTable } from "@/components/tables/dod-summary-table";
 import { WowMomTable } from "@/components/tables/wow-mom-table";
 import { ComparisonWidget } from "@/components/widgets/comparison-widget";
 import { Leaderboard } from "@/components/widgets/leaderboard";
-import { WAREHOUSE_CODES } from "@/lib/csv/mappings";
+import { useGlobalFilters } from "@/lib/filters/useGlobalFilters";
 
 type DodRow = {
   day: string;
@@ -39,16 +40,11 @@ type AvgDeliveryResponse = {
 
 const AUTO_REFRESH_INTERVAL = 2 * 60 * 60 * 1000;
 
-function dateOffset(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
-}
-
 export default function DashboardPage() {
-  const [warehouse, setWarehouse] = useState<string>("ALL");
-  const [from, setFrom] = useState<string>(dateOffset(-45));
-  const [to, setTo] = useState<string>(dateOffset(0));
+  const { filters, setFilters, appliedFilters, applyFilters } = useGlobalFilters({
+    warehouse: "ALL",
+    fromOffsetDays: -45,
+  });
   const [data, setData] = useState<DodResponse | null>(null);
   const [avgDelivery, setAvgDelivery] = useState<AvgDeliveryResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -63,7 +59,7 @@ export default function DashboardPage() {
     setError(null);
 
     try {
-      const params = new URLSearchParams({ warehouse, from, to });
+      const params = new URLSearchParams(appliedFilters);
       const [dodResponse, avgResponse] = await Promise.all([
         fetch(`/api/dod?${params.toString()}`),
         fetch(`/api/avg-delivery?${params.toString()}`),
@@ -85,7 +81,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [warehouse, from, to]);
+  }, [appliedFilters]);
 
   useEffect(() => {
     void load();
@@ -130,55 +126,34 @@ export default function DashboardPage() {
             title="Data refreshes automatically every 2 hours."
             aria-label="Data refreshes automatically every 2 hours."
           >
-            ⓘ
+            i
           </span>
         </div>
         <button onClick={() => void load()} disabled={loading}>
-          🔄 Refresh Now
+          Refresh Now
         </button>
       </div>
 
-      <section className="card grid two">
-        <label>
-          Warehouse
-          <select value={warehouse} onChange={(event) => setWarehouse(event.target.value)}>
-            <option value="ALL">All Warehouses</option>
-            {WAREHOUSE_CODES.map((code) => (
-              <option key={code} value={code}>
-                {code}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label>
-          From
-          <input type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
-        </label>
-
-        <label>
-          To
-          <input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
-        </label>
-
-        <div className="btn-row" style={{ alignItems: "end" }}>
-          <button className="btn" type="button" onClick={() => void load()} disabled={loading}>
-            {loading ? "Loading..." : "Apply"}
-          </button>
+      <GlobalFilters
+        filters={filters}
+        onChange={setFilters}
+        onApply={() => applyFilters()}
+        loading={loading}
+        trailing={
           <button
             className="btn btn-ghost"
             type="button"
             onClick={() => {
               setExporting(true);
-              window.location.href = `/api/export/csv?type=dashboard&warehouse=${warehouse}&from=${from}&to=${to}`;
+              window.location.href = `/api/export/csv?type=dashboard&warehouse=${appliedFilters.warehouse}&from=${appliedFilters.from}&to=${appliedFilters.to}`;
               setTimeout(() => setExporting(false), 1500);
             }}
             disabled={exporting}
           >
-            {exporting ? "Exporting..." : "📥 Export CSV"}
+            {exporting ? "Exporting..." : "Export CSV"}
           </button>
-        </div>
-      </section>
+        }
+      />
 
       {error && <p className="error">{error}</p>}
 
@@ -189,10 +164,10 @@ export default function DashboardPage() {
             <span className="big-number">{formatTime(avgDelivery.overall.avg_minutes)}</span>
             <span className={`trend ${avgDelivery.trend.direction}`}>
               {avgDelivery.trend.direction === "increasing"
-                ? "↑"
+                ? "up"
                 : avgDelivery.trend.direction === "decreasing"
-                  ? "↓"
-                  : "→"}
+                  ? "down"
+                  : "flat"}
               {Math.abs(avgDelivery.trend.change_minutes)}m vs last week
             </span>
           </div>
@@ -200,11 +175,17 @@ export default function DashboardPage() {
       )}
 
       <section className="card">
-        <WowMomTable warehouse={warehouse} from={from} to={to} />
+        <WowMomTable
+          warehouse={appliedFilters.warehouse}
+          from={appliedFilters.from}
+          to={appliedFilters.to}
+        />
       </section>
 
       <section className="card">
-        <ComparisonWidget warehouse={warehouse === "ALL" ? "KUWAIT" : warehouse} />
+        <ComparisonWidget
+          warehouse={appliedFilters.warehouse === "ALL" ? "KUWAIT" : appliedFilters.warehouse}
+        />
       </section>
 
       <section className="card">
