@@ -1,4 +1,4 @@
-# Parcel Admin Dashboard — Enhancements Design (v8.1, repo-aligned)
+# Parcel Admin Dashboard — Enhancements Design (v9, repo-aligned)
 
 ## 1) Design goals
 - Add missing capabilities without reworking existing app structure.
