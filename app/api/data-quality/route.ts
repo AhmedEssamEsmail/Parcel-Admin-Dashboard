@@ -7,6 +7,8 @@ export const GET = withRateLimit(async (request: NextRequest) => {
   const params = request.nextUrl.searchParams;
   const severity = params.get("severity")?.trim();
   const warehouse = params.get("warehouse")?.trim();
+  const from = params.get("from")?.trim();
+  const to = params.get("to")?.trim();
   const checkId = params.get("check_id")?.trim();
   const resolution = params.get("resolution")?.trim().toLowerCase() ?? "open";
 
@@ -33,6 +35,12 @@ export const GET = withRateLimit(async (request: NextRequest) => {
   }
   if (checkId) {
     query = query.eq("check_id", checkId);
+  }
+  if (from) {
+    query = query.gte("detected_at", `${from}T00:00:00.000Z`);
+  }
+  if (to) {
+    query = query.lte("detected_at", `${to}T23:59:59.999Z`);
   }
 
   const { data, error } = await query;

@@ -1,8 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
+import { GlobalFilters } from "@/components/filters/global-filters";
 import { AppNav } from "@/components/layout/nav";
+import { useGlobalFilters } from "@/lib/filters/useGlobalFilters";
+import { buildParcelDetailHref } from "@/lib/navigation/links";
 
 type Issue = {
   id: string;
@@ -21,6 +25,11 @@ type DataQualityResponse = {
 };
 
 export default function DataQualityPage() {
+  const { filters, setFilters, appliedFilters, applyFilters } = useGlobalFilters({
+    warehouse: "ALL",
+    fromOffsetDays: -30,
+  });
+
   const [data, setData] = useState<DataQualityResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [expandedIssue, setExpandedIssue] = useState<string | null>(null);
@@ -30,7 +39,7 @@ export default function DataQualityPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const params = new URLSearchParams();
+    const params = new URLSearchParams(appliedFilters);
     if (severityFilter !== "all") params.set("severity", severityFilter);
     if (resolutionFilter) params.set("resolution", resolutionFilter);
     if (checkIdFilter.trim()) params.set("check_id", checkIdFilter.trim());
@@ -38,7 +47,7 @@ export default function DataQualityPage() {
     const json = (await res.json()) as DataQualityResponse;
     setData(json);
     setLoading(false);
-  }, [severityFilter, resolutionFilter, checkIdFilter]);
+  }, [appliedFilters, severityFilter, resolutionFilter, checkIdFilter]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -71,6 +80,8 @@ export default function DataQualityPage() {
         <p className="muted">Last updated: {new Date().toLocaleString()}</p>
       </header>
 
+      <GlobalFilters filters={filters} onChange={setFilters} onApply={() => applyFilters()} />
+
       <section className="card grid three">
         <label>
           Severity
@@ -96,121 +107,66 @@ export default function DataQualityPage() {
       </section>
 
       <section className="grid three">
-        <div className="card summary-card critical">
-          <h2>{data?.summary.critical_count ?? 0}</h2>
-          <p>Critical Issues</p>
-        </div>
-        <div className="card summary-card warning">
-          <h2>{data?.summary.warning_count ?? 0}</h2>
-          <p>Warnings</p>
-        </div>
-        <div className="card summary-card info">
-          <h2>{data?.summary.info_count ?? 0}</h2>
-          <p>Info</p>
-        </div>
+        <div className="card summary-card critical"><h2>{data?.summary.critical_count ?? 0}</h2><p>Critical Issues</p></div>
+        <div className="card summary-card warning"><h2>{data?.summary.warning_count ?? 0}</h2><p>Warnings</p></div>
+        <div className="card summary-card info"><h2>{data?.summary.info_count ?? 0}</h2><p>Info</p></div>
       </section>
 
-      {data?.issues.critical.length ? (
-        <section className="card">
-          <h3>🔴 Critical Issues</h3>
-          {data.issues.critical.map((issue) => (
-            <div key={issue.id} className="issue-card critical">
-              <div className="issue-header">
-                <strong>{issue.check_name}</strong>
-                <span className="count">{issue.affected_count} records</span>
-              </div>
-              <p>{issue.description}</p>
-              {issue.recommendation && <p className="recommendation">💡 {issue.recommendation}</p>}
-              <div className="issue-actions">
-                <button onClick={() => setExpandedIssue(expandedIssue === issue.id ? null : issue.id)}>
-                  {expandedIssue === issue.id ? "Hide Records" : "View Records"}
-                </button>
-                <button className="secondary" onClick={() => exportIssue(issue.id)}>
-                  Export List
-                </button>
-                <button className="resolve" onClick={() => void resolveIssue(issue.id)}>
-                  Mark Resolved
-                </button>
-              </div>
-              {expandedIssue === issue.id && (
-                <div className="sample-records">
-                  <h4>Sample Parcel IDs:</h4>
-                  <code>{issue.sample_records?.slice(0, 10).join(", ")}</code>
-                </div>
-              )}
-            </div>
-          ))}
-        </section>
-      ) : null}
-
-      {data?.issues.warning.length ? (
-        <section className="card">
-          <h3>⚠️ Warnings</h3>
-          {data.issues.warning.map((issue) => (
-            <div key={issue.id} className="issue-card warning">
-              <div className="issue-header">
-                <strong>{issue.check_name}</strong>
-                <span className="warehouse">{issue.warehouse_code}</span>
-                <span className="count">{issue.affected_count} records</span>
-              </div>
-              <p>{issue.description}</p>
-              {issue.recommendation && <p className="recommendation">💡 {issue.recommendation}</p>}
-              <div className="issue-actions">
-                <button onClick={() => setExpandedIssue(expandedIssue === issue.id ? null : issue.id)}>
-                  {expandedIssue === issue.id ? "Hide Records" : "View Records"}
-                </button>
-                <button className="secondary" onClick={() => exportIssue(issue.id)}>
-                  Export List
-                </button>
-                <button className="resolve" onClick={() => void resolveIssue(issue.id)}>
-                  Mark Resolved
-                </button>
-              </div>
-              {expandedIssue === issue.id && (
-                <div className="sample-records">
-                  <h4>Sample Parcel IDs:</h4>
-                  <code>{issue.sample_records?.slice(0, 10).join(", ")}</code>
-                </div>
-              )}
-            </div>
-          ))}
-        </section>
-      ) : null}
-
-      {data?.issues.info.length ? (
-        <section className="card">
-          <h3>ℹ️ Information</h3>
-          {data.issues.info.map((issue) => (
-            <div key={issue.id} className="issue-card info">
-              <div className="issue-header">
-                <strong>{issue.check_name}</strong>
-                <span className="count">{issue.affected_count}</span>
-              </div>
-              <p>{issue.description}</p>
-              <div className="issue-actions">
-                <button onClick={() => setExpandedIssue(expandedIssue === issue.id ? null : issue.id)}>
-                  {expandedIssue === issue.id ? "Hide Records" : "View Records"}
-                </button>
-                <button className="secondary" onClick={() => exportIssue(issue.id)}>
-                  Export List
-                </button>
-                <button className="resolve" onClick={() => void resolveIssue(issue.id)}>
-                  Mark Resolved
-                </button>
-              </div>
-              {expandedIssue === issue.id && (
-                <div className="sample-records">
-                  <h4>Sample Parcel IDs:</h4>
-                  <code>{issue.sample_records?.slice(0, 10).join(", ")}</code>
-                </div>
-              )}
-            </div>
-          ))}
-        </section>
-      ) : null}
+      {renderIssueList("Critical Issues", "critical", data?.issues.critical ?? [], expandedIssue, setExpandedIssue, resolveIssue)}
+      {renderIssueList("Warnings", "warning", data?.issues.warning ?? [], expandedIssue, setExpandedIssue, resolveIssue)}
+      {renderIssueList("Information", "info", data?.issues.info ?? [], expandedIssue, setExpandedIssue, resolveIssue)}
 
       {loading && <div className="loading-overlay">Refreshing...</div>}
     </main>
+  );
+}
+
+function renderIssueList(
+  title: string,
+  tone: "critical" | "warning" | "info",
+  issues: Issue[],
+  expandedIssue: string | null,
+  setExpandedIssue: (id: string | null) => void,
+  resolveIssue: (id: string) => Promise<void>,
+) {
+  if (issues.length === 0) return null;
+
+  return (
+    <section className="card">
+      <h3>{title}</h3>
+      {issues.map((issue) => (
+        <div key={issue.id} className={`issue-card ${tone}`}>
+          <div className="issue-header">
+            <strong>{issue.check_name}</strong>
+            <span className="count">{issue.affected_count} records</span>
+          </div>
+          <p>{issue.description}</p>
+          {issue.recommendation && <p className="recommendation">{issue.recommendation}</p>}
+          <div className="issue-actions">
+            <button onClick={() => setExpandedIssue(expandedIssue === issue.id ? null : issue.id)}>
+              {expandedIssue === issue.id ? "Hide Records" : "View Records"}
+            </button>
+            <button className="secondary" onClick={() => exportIssue(issue.id)}>Export List</button>
+            <button className="resolve" onClick={() => void resolveIssue(issue.id)}>Mark Resolved</button>
+          </div>
+          {expandedIssue === issue.id && (
+            <div className="sample-records">
+              <h4>Sample Parcel IDs:</h4>
+              <div className="btn-row">
+                {(issue.sample_records ?? []).slice(0, 10).map((record) => {
+                  const href = buildParcelDetailHref(issue.warehouse_code ?? "", record);
+                  return href ? (
+                    <Link key={record} href={href}>{record}</Link>
+                  ) : (
+                    <span key={record}>{record}</span>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+    </section>
   );
 }
 

@@ -36,34 +36,63 @@ export const GET = withRateLimit(async (request: NextRequest) => {
 
 export const PATCH = withRateLimit(async (request: NextRequest) => {
   const body = (await request.json().catch(() => null)) as
-    | { exception_id?: string; status?: "acknowledged" | "resolved"; actor?: string; note?: string }
+    | {
+        exception_id?: string;
+        exception_ids?: string[];
+        status?: "acknowledged" | "resolved";
+        actor?: string;
+        note?: string;
+        assignee?: string | null;
+        category?: string | null;
+        due_at?: string | null;
+        resolution?: string | null;
+        notes?: string | null;
+      }
     | null;
 
-  if (!body?.exception_id || !body.status) {
-    return NextResponse.json({ error: "exception_id and status are required" }, { status: 400 });
+  const ids = body?.exception_ids?.length
+    ? body.exception_ids
+    : body?.exception_id
+      ? [body.exception_id]
+      : [];
+
+  if (ids.length === 0) {
+    return NextResponse.json({ error: "exception_id or exception_ids is required" }, { status: 400 });
   }
 
   const supabase = getSupabaseAdminClient();
   const now = new Date().toISOString();
 
-  const updates: Record<string, string | null> = { status: body.status };
-  if (body.status === "resolved") updates.resolved_at = now;
+  const updates: Record<string, string | null> = {};
+  if (body?.status) {
+    updates.status = body.status;
+    if (body.status === "resolved") updates.resolved_at = now;
+  }
+
+  if (body?.assignee !== undefined) updates.assignee = body.assignee;
+  if (body?.category !== undefined) updates.category = body.category;
+  if (body?.due_at !== undefined) updates.due_at = body.due_at;
+  if (body?.resolution !== undefined) updates.resolution = body.resolution;
+  if (body?.notes !== undefined) updates.notes = body.notes;
 
   const { error } = await supabase
     .from("delivery_exceptions")
     .update(updates)
-    .eq("id", body.exception_id);
+    .in("id", ids);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const { error: actionError } = await supabase.from("exception_actions").insert({
-    exception_id: body.exception_id,
-    action: body.status,
-    actor: body.actor ?? "admin",
-    note: body.note ?? null,
-  });
+  if (body?.status) {
+    const actions = ids.map((id) => ({
+      exception_id: id,
+      action: body.status,
+      actor: body.actor ?? "admin",
+      note: body.note ?? null,
+    }));
 
-  if (actionError) return NextResponse.json({ error: actionError.message }, { status: 500 });
+    const { error: actionError } = await supabase.from("exception_actions").insert(actions);
+    if (actionError) return NextResponse.json({ error: actionError.message }, { status: 500 });
+  }
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, updated_count: ids.length });
 });

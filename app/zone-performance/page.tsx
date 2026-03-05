@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { GlobalFilters } from "@/components/filters/global-filters";
 import { AppNav } from "@/components/layout/nav";
 import { WAREHOUSE_CODES } from "@/lib/csv/mappings";
+import { useGlobalFilters } from "@/lib/filters/useGlobalFilters";
 
 type CityRow = {
   city: string;
@@ -33,9 +35,10 @@ type CityResponse = {
 };
 
 export default function ZonePerformancePage() {
-  const [warehouse, setWarehouse] = useState<string>("KUWAIT");
-  const [from, setFrom] = useState<string>(dateOffset(-30));
-  const [to, setTo] = useState<string>(dateOffset(0));
+  const { filters, setFilters, appliedFilters, applyFilters } = useGlobalFilters({
+    warehouse: "KUWAIT",
+    fromOffsetDays: -30,
+  });
   const [data, setData] = useState<CityResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
@@ -43,12 +46,12 @@ export default function ZonePerformancePage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const params = new URLSearchParams({ warehouse, from, to });
+    const params = new URLSearchParams(appliedFilters);
     const res = await fetch(`/api/zone-performance?${params}`);
     const json = (await res.json()) as CityResponse;
     setData(json);
     setLoading(false);
-  }, [warehouse, from, to]);
+  }, [appliedFilters]);
 
   useEffect(() => {
     let active = true;
@@ -64,7 +67,7 @@ export default function ZonePerformancePage() {
 
   const handleExport = () => {
     setExporting(true);
-    window.location.href = `/api/export/csv?type=zone&warehouse=${warehouse}&from=${from}&to=${to}`;
+    window.location.href = `/api/export/csv?type=zone&warehouse=${appliedFilters.warehouse}&from=${appliedFilters.from}&to=${appliedFilters.to}`;
     setTimeout(() => setExporting(false), 1500);
   };
 
@@ -93,26 +96,12 @@ export default function ZonePerformancePage() {
         <p className="muted">Analyze delivery performance by city.</p>
       </header>
 
-      <section className="card grid three">
-        <label>
-          Warehouse
-          <select value={warehouse} onChange={(e) => setWarehouse(e.target.value)}>
-            {WAREHOUSE_CODES.map((code) => (
-              <option key={code} value={code}>
-                {code}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          From
-          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-        </label>
-        <label>
-          To
-          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-        </label>
-      </section>
+      <GlobalFilters
+        filters={filters}
+        onChange={setFilters}
+        onApply={() => applyFilters()}
+        includeAllWarehouses={false}
+      />
 
       {loading ? (
         <div className="card">Loading...</div>
@@ -410,8 +399,4 @@ function formatTime(minutes: number | null): string {
   return `${hours}h ${mins}m`;
 }
 
-function dateOffset(days: number): string {
-  const date = new Date();
-  date.setDate(date.getDate() + days);
-  return date.toISOString().slice(0, 10);
-}
+
