@@ -152,3 +152,5 @@ Notes (2026-03-05): Completed nav glyph fix, shared filter primitives, partial U
 
 
 Notes (2026-03-05, pass 2): Completed remaining sprints including volume APIs/UI, SLA breach histogram, distribution endpoints/UI, ingest-health matrix API/page, raw/data-quality URL global filters, data-quality parcel links, exceptions workflow migration + bulk patch + metrics + UI.
+
+Notes (2026-03-05, nav follow-up): Removed Data Quality and Ingest Health from main navigation since both are now available as Settings tabs.

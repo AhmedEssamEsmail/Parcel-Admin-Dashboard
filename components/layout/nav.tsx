@@ -11,10 +11,8 @@ const LINKS = [
   { href: "/exceptions", label: "Exceptions", icon: "EX" },
   { href: "/promise-reliability", label: "Promise Reliability", icon: "PR" },
   { href: "/route-efficiency", label: "Route Efficiency", icon: "RE" },
-  { href: "/data-quality", label: "Data Quality", icon: "DQ" },
   { href: "/raw-delivery-stages", label: "Raw Delivery Stages", icon: "RD" },
   { href: "/volume", label: "Volume", icon: "VO" },
-  { href: "/ingest-health", label: "Ingest Health", icon: "IH" },
   { href: "/distributions", label: "Distributions", icon: "DI" },
   { href: "/settings", label: "Settings", icon: "ST" },
 ];
