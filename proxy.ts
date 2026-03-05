@@ -32,7 +32,7 @@ function getRequestedWarehouse(request: NextRequest): string | null {
 }
 
 export function proxy(request: NextRequest) {
-  const { pathname, search } = request.nextUrl;
+  const { pathname, search, searchParams } = request.nextUrl;
 
   if (PUBLIC_PATHS.has(pathname) || isPublicAsset(pathname)) {
     return NextResponse.next();
@@ -69,13 +69,28 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (pathname.startsWith("/api/")) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (
+    authScope.mode === "scoped" &&
+    pathname.startsWith("/api/") &&
+    !pathname.startsWith("/api/auth/")
+  ) {
+    if (request.method !== "GET") {
+      return NextResponse.json(
+        { error: "This password is read-only and restricted to assigned warehouse data." },
+        { status: 403 },
+      );
+    }
+
+    const requestedWarehouse = getRequestedWarehouseCode(pathname, searchParams);
+    if (!requestedWarehouse || !authScope.warehouses.includes(requestedWarehouse)) {
+      return NextResponse.json(
+        { error: "This password cannot access the requested warehouse." },
+        { status: 403 },
+      );
+    }
   }
 
-  const loginUrl = new URL("/login", request.url);
-  loginUrl.searchParams.set("next", `${pathname}${search}`);
-  return NextResponse.redirect(loginUrl);
+  return NextResponse.next();
 }
 
 export const config = {
