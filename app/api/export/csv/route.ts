@@ -33,11 +33,29 @@ export const GET = withRateLimit(async (request: NextRequest) => {
       filename = `exceptions_${warehouse}_${from || "all"}_${to || "all"}.csv`;
       break;
     case "promise":
-      data = await fetchData(supabase, "v_promise_reliability_daily", warehouse, from, to);
+      data = await fetchData(
+        supabase,
+        warehouse === "ALL"
+          ? "v_promise_reliability_daily_rollup"
+          : "v_promise_reliability_daily",
+        warehouse,
+        from,
+        to,
+        { allWarehouseOnly: warehouse === "ALL" },
+      );
       filename = `promise_reliability_${warehouse}_${from || "all"}_${to || "all"}.csv`;
       break;
     case "route-efficiency":
-      data = await fetchData(supabase, "v_route_efficiency_daily", warehouse, from, to);
+      data = await fetchData(
+        supabase,
+        warehouse === "ALL"
+          ? "v_route_efficiency_daily_rollup"
+          : "v_route_efficiency_daily",
+        warehouse,
+        from,
+        to,
+        { allWarehouseOnly: warehouse === "ALL" },
+      );
       filename = `route_efficiency_${warehouse}_${from || "all"}_${to || "all"}.csv`;
       break;
     case "wow":
@@ -49,7 +67,14 @@ export const GET = withRateLimit(async (request: NextRequest) => {
       filename = `comparison_${warehouse}_${from || "all"}_${to || "all"}.csv`;
       break;
     default:
-      data = await fetchData(supabase, "v_dod_summary", warehouse, from, to);
+      data = await fetchData(
+        supabase,
+        warehouse === "ALL" ? "v_dod_summary_daily_rollup" : "v_dod_summary",
+        warehouse,
+        from,
+        to,
+        { allWarehouseOnly: warehouse === "ALL" },
+      );
       filename = `dashboard_${warehouse}_${from || "all"}_${to || "all"}.csv`;
   }
 
@@ -69,10 +94,15 @@ async function fetchData(
   warehouse: string,
   from?: string | null,
   to?: string | null,
+  options?: { allWarehouseOnly?: boolean },
 ) {
   let query = supabase.from(viewName).select("*");
 
-  if (warehouse !== "ALL") query = query.eq("warehouse_code", warehouse);
+  if (warehouse !== "ALL") {
+    query = query.eq("warehouse_code", warehouse);
+  } else if (options?.allWarehouseOnly) {
+    query = query.eq("warehouse_code", "ALL");
+  }
   if (from) query = query.gte("day", from);
   if (to) query = query.lte("day", to);
 

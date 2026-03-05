@@ -4,6 +4,7 @@ import { withRateLimit } from "@/lib/middleware/rate-limit";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 
 type AvgDeliveryRow = {
+  day: string;
   delivered_count: number;
   avg_minutes: number;
   median_minutes: number | null;
@@ -25,7 +26,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
   const supabase = getSupabaseAdminClient();
 
   const { data, error } = await supabase
-    .from("v_avg_delivery_time")
+    .from("v_avg_delivery_time_daily_rollup")
     .select("*")
     .eq("warehouse_code", warehouse)
     .gte("day", from || "1900-01-01")

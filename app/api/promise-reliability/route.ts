@@ -10,13 +10,50 @@ export const GET = withRateLimit(async (request: NextRequest) => {
   const to = params.get("to")?.trim();
 
   const supabase = getSupabaseAdminClient();
-  let query = supabase.from("v_promise_reliability_daily").select("*").order("day", { ascending: true });
-  if (warehouse && warehouse !== "ALL") query = query.eq("warehouse_code", warehouse);
-  if (from) query = query.gte("day", from);
-  if (to) query = query.lte("day", to);
+  const dailyWarehouse = warehouse && warehouse !== "ALL" ? warehouse : "ALL";
 
-  const { data, error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  let dailyQuery = supabase
+    .from("v_promise_reliability_daily_rollup")
+    .select("*")
+    .eq("warehouse_code", dailyWarehouse)
+    .order("day", { ascending: true });
 
-  return NextResponse.json({ rows: data ?? [] });
+  let detailedQuery = supabase
+    .from("v_promise_reliability_daily")
+    .select("*")
+    .order("day", { ascending: true });
+
+  if (warehouse && warehouse !== "ALL") {
+    detailedQuery = detailedQuery.eq("warehouse_code", warehouse);
+  }
+
+  if (from) {
+    dailyQuery = dailyQuery.gte("day", from);
+    detailedQuery = detailedQuery.gte("day", from);
+  }
+
+  if (to) {
+    dailyQuery = dailyQuery.lte("day", to);
+    detailedQuery = detailedQuery.lte("day", to);
+  }
+
+  const [{ data: dailyData, error: dailyError }, { data: detailedData, error: detailedError }] =
+    await Promise.all([dailyQuery, detailedQuery]);
+
+  if (dailyError) {
+    return NextResponse.json({ error: dailyError.message }, { status: 500 });
+  }
+
+  if (detailedError) {
+    return NextResponse.json({ error: detailedError.message }, { status: 500 });
+  }
+
+  const dailyRows = dailyData ?? [];
+  const detailedRows = detailedData ?? [];
+
+  return NextResponse.json({
+    rows: detailedRows,
+    daily_rows: dailyRows,
+    detailed_rows: detailedRows,
+  });
 });

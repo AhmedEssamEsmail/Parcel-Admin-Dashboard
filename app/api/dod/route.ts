@@ -174,10 +174,11 @@ export const GET = withRateLimit(async (request: NextRequest) => {
   let chartWaDeliveredPct: number[] = [];
 
   const { data: summaryData, error: summaryError } = await supabase
-    .from("v_dod_summary")
+    .from("v_dod_summary_daily_rollup")
     .select(
       "warehouse_code,day,total_placed_inc_wa,total_delivered_inc_wa,on_time_inc_wa,otd_pct_inc_wa,null_on_time_count,wa_count,wa_delivered_count,total_placed_exc_wa,total_delivered_exc_wa,on_time_exc_wa,otd_pct_exc_wa",
     )
+    .eq("warehouse_code", warehouseFilter ?? "ALL")
     .gte("day", from)
     .lte("day", to)
     .order("day", { ascending: true });
@@ -197,10 +198,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
       return Number(((waDelivered / row.total_delivered) * 100).toFixed(2));
     });
   } else {
-    const filteredRows = (summaryData ?? []) as DodSummaryRow[];
-    const visibleRows = warehouseFilter
-      ? filteredRows.filter((row) => row.warehouse_code === warehouseFilter)
-      : filteredRows;
+    const visibleRows = (summaryData ?? []) as DodSummaryRow[];
 
     rowsIncWa = visibleRows.map((row) => ({
       day: row.day,
