@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import {
   AUTH_COOKIE_NAME,
+  AUTH_COOKIE_VALUE,
   AUTH_MAX_AGE_SECONDS,
   AUTH_SCOPE_COOKIE_NAME,
 } from "@/lib/auth/constants";
@@ -38,7 +39,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
   });
   response.cookies.set({
     name: AUTH_COOKIE_NAME,
-    value: serializeAccessScope(accessScope),
+    value: AUTH_COOKIE_VALUE,
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
