@@ -21,7 +21,11 @@ type IngestHealthResponse = {
   freshness?: { stale_threshold_hours: number; matrix: FreshnessRow[] };
 };
 
-export default function IngestHealthPage() {
+type IngestHealthPageContentProps = {
+  embedded?: boolean;
+};
+
+export function IngestHealthPageContent({ embedded = false }: IngestHealthPageContentProps) {
   const { filters, setFilters, appliedFilters, applyFilters } = useGlobalFilters({
     warehouse: "ALL",
     fromOffsetDays: -7,
@@ -48,9 +52,8 @@ export default function IngestHealthPage() {
     };
   }, [load]);
 
-  return (
-    <main className="page-wrap">
-      <AppNav />
+  const content = (
+    <>
       <header className="page-header">
         <h1>Ingest Health</h1>
         <p className="muted">Dataset freshness matrix and recent ingestion failures.</p>
@@ -115,8 +118,21 @@ export default function IngestHealthPage() {
           <Link href="/data-quality">Data Quality</Link>
         </div>
       </section>
+    </>
+  );
+
+  if (embedded) {
+    return content;
+  }
+
+  return (
+    <main className="page-wrap">
+      <AppNav />
+      {content}
     </main>
   );
 }
 
-
+export default function IngestHealthPage() {
+  return <IngestHealthPageContent />;
+}

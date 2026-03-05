@@ -21,12 +21,17 @@ export function MobileNav({ links, activePath, onLogout }: MobileNavProps) {
   return (
     <>
       <button
-        className="mobile-menu-btn"
+        className={`mobile-menu-btn ${isOpen ? "is-open" : ""}`}
         onClick={() => setIsOpen((current) => !current)}
-        aria-label="Toggle menu"
+        aria-label={isOpen ? "Close menu" : "Open menu"}
+        aria-expanded={isOpen}
         type="button"
       >
-        {isOpen ? "X" : "?"}
+        <span className="mobile-menu-btn__icon" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </span>
       </button>
 
       {isOpen && (
@@ -40,8 +45,8 @@ export function MobileNav({ links, activePath, onLogout }: MobileNavProps) {
                   className={activePath === link.href ? "active" : ""}
                   onClick={() => setIsOpen(false)}
                 >
-                  <span>{link.icon}</span>
-                  <span>{link.label}</span>
+                  <span className="mobile-menu__icon">{link.icon}</span>
+                  <span className="mobile-menu__label">{link.label}</span>
                 </Link>
               ))}
             </div>

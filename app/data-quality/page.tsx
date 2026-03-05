@@ -24,7 +24,11 @@ type DataQualityResponse = {
   issues: { critical: Issue[]; warning: Issue[]; info: Issue[] };
 };
 
-export default function DataQualityPage() {
+type DataQualityPageContentProps = {
+  embedded?: boolean;
+};
+
+export function DataQualityPageContent({ embedded = false }: DataQualityPageContentProps) {
   const { filters, setFilters, appliedFilters, applyFilters } = useGlobalFilters({
     warehouse: "ALL",
     fromOffsetDays: -30,
@@ -71,10 +75,8 @@ export default function DataQualityPage() {
     void load();
   };
 
-  return (
-    <main className="page-wrap">
-      <AppNav />
-
+  const content = (
+    <>
       <header className="page-header">
         <h1>Data Quality Monitor</h1>
         <p className="muted">Last updated: {new Date().toLocaleString()}</p>
@@ -117,8 +119,23 @@ export default function DataQualityPage() {
       {renderIssueList("Information", "info", data?.issues.info ?? [], expandedIssue, setExpandedIssue, resolveIssue)}
 
       {loading && <div className="loading-overlay">Refreshing...</div>}
+    </>
+  );
+
+  if (embedded) {
+    return content;
+  }
+
+  return (
+    <main className="page-wrap">
+      <AppNav />
+      {content}
     </main>
   );
+}
+
+export default function DataQualityPage() {
+  return <DataQualityPageContent />;
 }
 
 function renderIssueList(
