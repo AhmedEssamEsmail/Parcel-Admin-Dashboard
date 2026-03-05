@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { AUTH_SCOPE_COOKIE_NAME, AUTH_SCOPE_FULL_ACCESS } from "@/lib/auth/constants";
+import { decodeScopeCookie, isWarehouseAllowed } from "@/lib/auth/scopes";
 import { withRateLimit } from "@/lib/middleware/rate-limit";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 
@@ -14,7 +16,7 @@ function isValidUuid(value: string): boolean {
   );
 }
 
-export const GET = withRateLimit(async () => {
+export const GET = withRateLimit(async (request: NextRequest) => {
   const supabase = getSupabaseAdminClient();
 
   const { data, error } = await supabase
@@ -26,7 +28,14 @@ export const GET = withRateLimit(async () => {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ warehouses: data ?? [] });
+  const allowedWarehouses = decodeScopeCookie(request.cookies.get(AUTH_SCOPE_COOKIE_NAME)?.value);
+
+  const scopedWarehouses =
+    allowedWarehouses === AUTH_SCOPE_FULL_ACCESS
+      ? data ?? []
+      : (data ?? []).filter((warehouse) => isWarehouseAllowed(warehouse.code, allowedWarehouses));
+
+  return NextResponse.json({ warehouses: scopedWarehouses });
 });
 
 export const PUT = withRateLimit(async (request: NextRequest) => {
