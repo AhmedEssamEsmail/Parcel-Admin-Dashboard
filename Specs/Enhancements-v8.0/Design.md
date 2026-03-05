@@ -1,220 +1,68 @@
-# Parcel Admin Dashboard — Enhancements Design (v8)
+# Parcel Admin Dashboard — Enhancements Design (v8.1, repo-aligned)
 
 ## 1) Design goals
-- One filter system across the app (shared component + URL state).
-- Drilldown paths:
-  KPI → list → parcel timeline
-- Add distribution analytics (histograms/percentiles) to reduce “average hides tail” issues.
-- Add operational reliability pages (ingest health, exceptions workflow depth).
+- Add missing capabilities without reworking existing app structure.
+- Standardize filtering via shared URL-aware utilities.
+- Build drilldown path: KPI/list row → parcel detail timeline.
+- Ensure chart labels match actual metric semantics.
 
-## 2) Proposed navigation / routes
-Add these routes:
+## 2) Current-state alignment
+- Existing pages remain in place under `app/*/page.tsx`.
+- Existing APIs remain in place under `app/api/*/route.ts`.
+- Reuse these endpoints where possible; only add new endpoints for truly new analytics.
+- Extend existing `/api/ingest-health` instead of introducing a duplicate summary endpoint.
+
+## 3) Proposed additions (routes)
 - `/volume` (heatmap + forecast)
-- `/ingest-health`
-- `/parcel/[warehouseCode]/[parcelId]` (parcel timeline)
-- `/distributions` (delivery + ETA distributions)  (optional but recommended)
+- `/ingest-health` (new page consuming extended ingest API)
+- `/parcel/[warehouseCode]/[parcelId]` (preferred parcel detail route)
+- `/distributions` (optional if distribution visuals are not embedded into existing pages)
 
-Keep existing routes unchanged.
+## 4) Shared filter system
+### 4.1 Core filter contract
+- `warehouse`, `from`, `to` as canonical global query params.
+- Page-specific params remain page-owned but serialized consistently.
 
-## 3) Shared filter system
+### 4.2 Implementation shape
+- `components/filters/GlobalFilters.tsx`
+- `lib/filters/useGlobalFilters.ts`
+- `lib/filters/serialize.ts`
 
-### 3.1 Filter state model
-Core params:
-- `warehouse` (ALL or warehouse_code)
-- `from` (YYYY-MM-DD)
-- `to` (YYYY-MM-DD)
+### 4.3 Migration strategy
+- Start with Dashboard.
+- Migrate existing analytics pages one by one.
+- Preserve global filters in navigation links.
 
-Page-specific params examples:
-- exceptions: `severity`, `status`, `category`, `assignee`
-- DQ: `severity`, `resolved`, `check_id`
-- raw delivery stages: `kpi_status`, `cutoff_status`, `wa`, `city`, `zone`, `ticket_status`, pagination
+## 5) Data/API design
+### 5.1 New endpoints
+- `GET /api/volume-heatmap`
+- `GET /api/volume-forecast`
+- `GET /api/sla-breach-histogram`
+- `GET /api/parcel-detail`
+- `GET /api/distributions/delivery-time`
+- `GET /api/distributions/eta-error`
+- `GET /api/exceptions/metrics` (incremental)
 
-### 3.2 URL contract
-- Every page reads initial filter values from URL search params.
-- Every Apply action writes filters back to URL.
-- When navigating between pages, preserve warehouse/from/to unless explicitly overridden.
+### 5.2 Existing endpoint extension
+- Extend `GET /api/ingest-health` response with dataset freshness matrix + stale/fresh status metadata.
 
-### 3.3 Implementation shape (no code, but structure)
-- `components/filters/GlobalFilters.tsx` (UI)
-- `lib/filters/useGlobalFilters.ts` (reads/writes URL params, provides typed object)
-- `lib/filters/serialize.ts` (stable encode/decode of params)
+### 5.3 Existing endpoint updates
+- Extend `PATCH /api/exceptions` to support bulk updates and newly added workflow fields.
 
-## 4) Data & DB design (new/extended)
+## 6) UI component design
+- Heatmap component: 7×24 CSS grid with legend + tooltips.
+- Forecast chart: actual vs predicted.
+- SLA breach histogram: 4 fixed late buckets + summary cards.
+- Parcel timeline: vertical stage list with raw/work-time durations.
+- Distribution charts: true histograms and percentile trend lines.
+- Ingest health: warehouse × dataset matrix + failure list.
 
-## 4.1 Volume heatmap aggregation
-Preferred: Postgres function or parameterized query returning:
-- `dow` (consistent encoding)
-- `hour` (0–23)
-- `orders` (count)
-Optional:
-- `occurrences` (# of that weekday in range) for avg-per-day.
+## 7) Drilldown/linking design
+- Introduce helper for building links with preserved global filters.
+- Replace plain parcel ID text cells with links where available.
+- Add chart/table click handlers to open filtered raw views.
 
-API will fill missing buckets to ensure a full 7×24 grid.
-
-## 4.2 Daily volume series (for forecast)
-Return:
-- `day` (local date)
-- `orders` (count)
-
-Forecast is computed server-side (API route) using a baseline method:
-- seasonal naive (use last week’s same weekday), or
-- day-of-week rolling average (last N weeks), or
-- weighted blend (documented in response.model)
-
-## 4.3 SLA breach bucketing
-Prefer server-side:
-- late_minutes computed from delivered vs deadline
-- group into bucket labels
-
-Return:
-- summary counts (delivered/onTime/late)
-- buckets list
-
-## 4.4 Parcel detail timeline
-Data sources:
-- `v_parcel_phases` (timestamps + adjusted seconds)
-- `v_parcel_kpi` or base view (flags: cutoff/waiting address/on-time)
-- exceptions/tickets tables (optional joins)
-
-API returns one object:
-- identity, flags, SLA config used
-- timestamps (phase names + ts)
-- durations (raw + adjusted)
-- related exceptions/tickets/dq
-
-## 4.5 Distribution analytics (delivery + ETA)
-Delivery time:
-- histogram bins (server-side binning preferred)
-- percentiles p50/p90/p95 by day/week
-
-ETA error:
-- signed error bins
-- absolute error bins
-- percentiles for abs error
-
-Fix the current ETA chart mismatch by:
-- renaming existing “avg ETA error daily” chart accurately, and/or
-- migrating it into the distributions page as the trend view.
-
-## 4.6 Ingest health page
-Use existing ingest_runs + extend with:
-- dataset list (known dataset types)
-- per dataset “freshness SLA” thresholds (config table or static config in code)
-
-Return:
-- warehouse × dataset matrix (last_run_at, status, row_count)
-- recent failures list
-
-## 4.7 Exceptions workflow depth
-Schema changes (migration):
-- add fields for assignment, category, due date, resolution code
-- timestamps for ack/resolution
-- notes (either inline text or normalized table)
-
-API changes:
-- extend PATCH to support:
-  - single update
-  - bulk update
-- add endpoints for:
-  - metrics (MTTA/MTTR, aging buckets)
-  - taxonomy lists (categories/assignees)
-
-UI changes:
-- table + bulk selection
-- details drawer editor
-- metrics charts (aging buckets, MTTA/MTTR trend)
-
-## 5) API design (routes & response shapes)
-
-### 5.1 `/api/volume-heatmap`
-GET params: warehouse, from, to
-Response:
-- meta (labels, range)
-- cells [{dow,hour,orders,avgPerDay?}]
-
-### 5.2 `/api/volume-forecast`
-GET params: warehouse, to (optional historyDays)
-Response:
-- history [{day,actual}]
-- forecast [{day,predicted,lower?,upper?}]
-- model {name,historyDays,notes,backtest?}
-
-### 5.3 `/api/sla-breach-histogram`
-GET params: warehouse, from, to
-Response:
-- summary {delivered,onTime,late}
-- buckets [{bucket,count,pctLate}]
-
-### 5.4 `/api/parcel-detail`
-GET params: warehouse, parcel_id (or path params)
-Response:
-- parcel header fields
-- timeline stages [{name,ts,rawSeconds,workSeconds}]
-- related {exceptions[],tickets[],dqIssues[]}
-
-### 5.5 `/api/distributions/delivery-time`
-GET params: warehouse, from, to, binSizeMinutes?
-Response:
-- bins [{min,max,count}]
-- percentiles {p50,p90,p95}
-- optional trend [{day,p50,p90,p95}]
-
-### 5.6 `/api/distributions/eta-error`
-Similar structure:
-- signed bins + abs bins + percentiles
-
-### 5.7 `/api/ingest-health/summary`
-GET params: days?
-Response:
-- matrix rows per warehouse with datasets columns
-- recent failures list
-- stale thresholds in meta
-
-### 5.8 Exceptions bulk update + metrics
-- `PATCH /api/exceptions` supports:
-  - single: exception_id + fields
-  - bulk: exception_ids[] + fields
-- `GET /api/exceptions/metrics` returns:
-  - MTTA/MTTR
-  - aging buckets
-  - rate trends
-
-## 6) UI components
-
-### 6.1 Heatmap
-Prefer a CSS grid component (7×24) with:
-- computed color scale
-- tooltip hover/tap
-- legend
-- mobile scroll handling
-
-### 6.2 Charts (Chart.js)
-- Forecast line chart (actual vs predicted)
-- SLA breach histogram bar chart
-- Distribution histograms bar charts
-- Percentile trends line charts
-- Exceptions aging buckets bar chart
-- MTTA/MTTR trend line chart
-
-### 6.3 Parcel timeline
-- Simple vertical timeline with:
-  - stage name
-  - timestamp
-  - duration (raw + adjusted)
-- Optional “bottleneck highlight” (top 1–2 longest stages).
-
-## 7) Drilldown linking design
-- Standard helper that creates URLs with preserved global filters.
-Examples:
-- Dashboard day click → `/raw-delivery-stages?warehouse=...&from=YYYY-MM-DD&to=YYYY-MM-DD&kpi_status=Late`
-- City click → `/zone-performance?warehouse=...&city=...` or `/reports/city?...`
-- Parcel click → `/parcel/{warehouse}/{parcelId}?from=...&to=...`
-
-## 8) Testing approach (lightweight)
-- Endpoint validations (200/400) for new APIs
-- A few UI smoke checks (pages render with empty data)
-- One drilldown integration check (URL carries filters correctly)
-
-## 9) Migration policy
-- New migration files only.
-- Keep each migration focused (one feature set per migration).
+## 8) Testing approach
+- API validation tests for each new endpoint (success + invalid params).
+- UI smoke tests for new pages with empty data states.
+- Navigation/filter persistence checks across migrated pages.
