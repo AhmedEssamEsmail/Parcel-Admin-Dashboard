@@ -4,14 +4,25 @@ import { useCallback, useEffect, useState } from "react";
 
 import { GlobalFilters } from "@/components/filters/global-filters";
 import { AppNav } from "@/components/layout/nav";
+import { PromiseReliabilityDailyTable } from "@/components/tables/promise-reliability-daily-table";
 import { PromiseReliabilityTrendChart } from "@/components/charts/promise-reliability-trend";
 import { PromiseReliabilityTable } from "@/components/tables/promise-reliability-table";
 import { useGlobalFilters } from "@/lib/filters/useGlobalFilters";
 
-type Row = {
+type DetailedRow = {
   warehouse_code: string;
   day: string;
   city: string;
+  total_orders: number;
+  delivered_with_promise: number;
+  within_promise_window: number;
+  promise_hit_rate: number | null;
+  avg_eta_error_minutes: number | null;
+};
+
+type DailyRow = {
+  warehouse_code: string;
+  day: string;
   total_orders: number;
   delivered_with_promise: number;
   within_promise_window: number;
@@ -29,7 +40,8 @@ export default function PromiseReliabilityPage() {
     fromOffsetDays: -30,
   });
 
-  const [rows, setRows] = useState<Row[]>([]);
+  const [dailyRows, setDailyRows] = useState<DailyRow[]>([]);
+  const [detailedRows, setDetailedRows] = useState<DetailedRow[]>([]);
   const [histogram, setHistogram] = useState<HistogramBucket[]>([]);
   const [summary, setSummary] = useState<{ delivered_with_promise: number; on_time: number; late: number } | null>(null);
   const [etaBins, setEtaBins] = useState<EtaBin[]>([]);
@@ -42,14 +54,19 @@ export default function PromiseReliabilityPage() {
       fetch(`/api/distributions/eta-error?${params.toString()}`),
     ]);
 
-    const reliabilityPayload = (await reliabilityRes.json()) as { rows?: Row[] };
+    const reliabilityPayload = (await reliabilityRes.json()) as {
+      rows?: DetailedRow[];
+      daily_rows?: DailyRow[];
+      detailed_rows?: DetailedRow[];
+    };
     const histogramPayload = (await histogramRes.json()) as {
       summary?: { delivered_with_promise: number; on_time: number; late: number };
       buckets?: HistogramBucket[];
     };
     const etaPayload = (await etaRes.json()) as { signed_bins?: EtaBin[] };
 
-    setRows(reliabilityPayload.rows ?? []);
+    setDailyRows(reliabilityPayload.daily_rows ?? []);
+    setDetailedRows(reliabilityPayload.detailed_rows ?? reliabilityPayload.rows ?? []);
     setSummary(histogramPayload.summary ?? null);
     setHistogram(histogramPayload.buckets ?? []);
     setEtaBins(etaPayload.signed_bins ?? []);
@@ -78,7 +95,7 @@ export default function PromiseReliabilityPage() {
 
       <section className="card">
         <h3>Promise Hit Rate Trend</h3>
-        <PromiseReliabilityTrendChart rows={rows} />
+        <PromiseReliabilityTrendChart rows={dailyRows} />
       </section>
 
       <section className="card">
@@ -112,9 +129,16 @@ export default function PromiseReliabilityPage() {
         </div>
       </section>
 
+      {appliedFilters.warehouse === "ALL" && (
+        <section className="card">
+          <h3>Daily Aggregate (All Warehouses)</h3>
+          <PromiseReliabilityDailyTable rows={dailyRows} />
+        </section>
+      )}
+
       <section className="card">
-        <h3>Promise Reliability Table</h3>
-        <PromiseReliabilityTable rows={rows} />
+        <h3>{appliedFilters.warehouse === "ALL" ? "Promise Reliability Detailed Breakdown" : "Promise Reliability Table"}</h3>
+        <PromiseReliabilityTable rows={detailedRows} />
       </section>
     </main>
   );
