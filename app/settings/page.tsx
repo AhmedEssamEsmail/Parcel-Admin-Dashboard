@@ -58,7 +58,15 @@ type SlaImportError = {
   error: string;
 };
 
-type TabKey = "warehouses" | "shifts" | "holidays" | "templates";
+type TabKey =
+  | "warehouses"
+  | "shifts"
+  | "holidays"
+  | "templates"
+  | "upload"
+  | "schedule"
+  | "data-quality"
+  | "ingest-health";
 
 const DAYS = [
   "Sunday",
@@ -81,18 +89,6 @@ export default function SettingsPage() {
         <h1>Settings</h1>
         <p className="muted">Configure SLA, shift windows, and holiday overrides.</p>
       </header>
-
-      <section className="card">
-        <h3>Settings Sub-pages</h3>
-        <div className="btn-row" style={{ marginTop: 8 }}>
-          <Link className="btn-ghost" href="/settings/upload">
-            Upload
-          </Link>
-          <Link className="btn-ghost" href="/settings/schedule">
-            Schedule
-          </Link>
-        </div>
-      </section>
 
       <nav className="tabs">
         <button
@@ -123,13 +119,69 @@ export default function SettingsPage() {
         >
           Templates
         </button>
+        <button
+          className={activeTab === "upload" ? "active" : ""}
+          type="button"
+          onClick={() => setActiveTab("upload")}
+        >
+          Upload
+        </button>
+        <button
+          className={activeTab === "schedule" ? "active" : ""}
+          type="button"
+          onClick={() => setActiveTab("schedule")}
+        >
+          Schedule
+        </button>
+        <button
+          className={activeTab === "data-quality" ? "active" : ""}
+          type="button"
+          onClick={() => setActiveTab("data-quality")}
+        >
+          Data Quality
+        </button>
+        <button
+          className={activeTab === "ingest-health" ? "active" : ""}
+          type="button"
+          onClick={() => setActiveTab("ingest-health")}
+        >
+          Ingest Health
+        </button>
       </nav>
 
       {activeTab === "warehouses" && <WarehousesTab />}
       {activeTab === "shifts" && <ShiftsTab />}
       {activeTab === "holidays" && <HolidaysTab />}
       {activeTab === "templates" && <ShiftTemplatesTab />}
+      {activeTab === "upload" && <EmbeddedTab title="Upload" path="/settings/upload" />}
+      {activeTab === "schedule" && <EmbeddedTab title="Schedule" path="/settings/schedule" />}
+      {activeTab === "data-quality" && <EmbeddedTab title="Data Quality" path="/data-quality" />}
+      {activeTab === "ingest-health" && <EmbeddedTab title="Ingest Health" path="/ingest-health" />}
     </main>
+  );
+}
+
+function EmbeddedTab({ title, path }: { title: string; path: string }) {
+  return (
+    <section className="card">
+      <div className="btn-row" style={{ justifyContent: "space-between", marginBottom: 10 }}>
+        <h2 style={{ margin: 0 }}>{title}</h2>
+        <Link className="btn-ghost" href={path}>
+          Open Full Page
+        </Link>
+      </div>
+      <iframe
+        title={title}
+        src={path}
+        style={{
+          width: "100%",
+          minHeight: "75vh",
+          border: "1px solid var(--border, #e5e7eb)",
+          borderRadius: 12,
+          background: "#fff",
+        }}
+      />
+    </section>
   );
 }
 
