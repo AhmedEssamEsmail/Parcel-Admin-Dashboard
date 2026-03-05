@@ -156,11 +156,6 @@ async function analyzeFile(file: File, index: number): Promise<UploadFileConfig>
     if (warehouseCodes.length === 0) {
       detectionErrors.push("No warehouse/country could be detected from CSV rows.");
     }
-    if (unknownWarehouseRows > 0) {
-      detectionErrors.push(
-        `Warehouse/country detection failed for ${unknownWarehouseRows} row(s).`,
-      );
-    }
 
     return {
       id,
@@ -292,11 +287,12 @@ export function UploadPageContent({ embedded = false }: UploadPageContentProps) 
       config.rows.forEach((row, index) => {
         const warehouseCode = detectWarehouseCodeForRow(row);
         if (!warehouseCode) {
-          uploadErrors.push({
+          uploadWarnings.push({
             fileName: config.file.name,
             row: index + 2,
-            message: "Warehouse/country could not be detected for this row.",
+            message: "Row skipped: warehouse/country could not be detected.",
           });
+          ignored += 1;
           return;
         }
 
