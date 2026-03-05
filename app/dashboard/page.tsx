@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { OnTimeComboChart } from "@/components/charts/on-time-combo";
 import { GlobalFilters } from "@/components/filters/global-filters";
@@ -49,10 +49,7 @@ export default function DashboardPage() {
   const [avgDelivery, setAvgDelivery] = useState<AvgDeliveryResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
-  const [secondsAgo, setSecondsAgo] = useState(0);
   const [exporting, setExporting] = useState(false);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -74,8 +71,6 @@ export default function DashboardPage() {
 
       setData(payload.rows_inc_wa ? payload : null);
       setAvgDelivery(avgResponse.ok ? avgPayload : null);
-      setLastUpdated(new Date());
-      setSecondsAgo(0);
     } catch {
       setError("Network error while loading dashboard data.");
     } finally {
@@ -88,21 +83,16 @@ export default function DashboardPage() {
   }, [load]);
 
   useEffect(() => {
-    const secondsInterval = setInterval(() => {
-      setSecondsAgo(Math.floor((Date.now() - lastUpdated.getTime()) / 1000));
-    }, 1000);
-
-    intervalRef.current = setInterval(() => {
+    const refreshInterval = setInterval(() => {
       if (!loading) {
         void load();
       }
     }, AUTO_REFRESH_INTERVAL);
 
     return () => {
-      clearInterval(secondsInterval);
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      clearInterval(refreshInterval);
     };
-  }, [lastUpdated, loading, load]);
+  }, [loading, load]);
 
   const chartData = useMemo(
     () => ({
@@ -117,22 +107,6 @@ export default function DashboardPage() {
   return (
     <main className="page-wrap">
       <AppNav />
-
-      <div className="refresh-bar">
-        <div className="refresh-info">
-          <span>Last updated: {formatElapsed(secondsAgo)} ago</span>
-          <span
-            className="refresh-help-tooltip"
-            title="Data refreshes automatically every 2 hours."
-            aria-label="Data refreshes automatically every 2 hours."
-          >
-            i
-          </span>
-        </div>
-        <button onClick={() => void load()} disabled={loading}>
-          Refresh Now
-        </button>
-      </div>
 
       <GlobalFilters
         filters={filters}
@@ -168,6 +142,7 @@ export default function DashboardPage() {
                 : avgDelivery.trend.direction === "decreasing"
                   ? "down"
                   : "flat"}
+              {" "}
               {Math.abs(avgDelivery.trend.change_minutes)}m vs last week
             </span>
           </div>
@@ -225,13 +200,4 @@ function formatTime(minutes: number | null): string {
   const hours = Math.floor(minutes / 60);
   const mins = Math.round(minutes % 60);
   return `${hours}h ${mins}m`;
-}
-
-function formatElapsed(totalSeconds: number): string {
-  const safeSeconds = Math.max(0, totalSeconds);
-  const hours = Math.floor(safeSeconds / 3600);
-  const minutes = Math.floor((safeSeconds % 3600) / 60);
-  const seconds = safeSeconds % 60;
-
-  return [hours, minutes, seconds].map((value) => String(value).padStart(2, "0")).join(":");
 }

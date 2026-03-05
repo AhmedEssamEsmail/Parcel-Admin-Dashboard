@@ -321,7 +321,13 @@ function getPeriodLabel(period: PeriodRow, viewType: "week" | "month"): string {
   }
 
   const candidate = period.month_start ?? period.month_label ?? "";
-  return formatDateMmmDd(candidate);
+  return formatMonthLabel(candidate);
+}
+
+function formatMonthLabel(value: string): string {
+  const formatted = formatDateMmmDd(value);
+  if (formatted === "-") return "-";
+  return formatted.split("-")[0] ?? formatted;
 }
 
 function summarizePeriods(periods: PeriodRow[]): CollapsedSummary {
