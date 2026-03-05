@@ -1,291 +1,95 @@
-# Parcel Admin Dashboard — Enhancements Spec (v8)
-Spec date: March 5, 2026
+# Parcel Admin Dashboard — Enhancements Spec (v8.1)
+Spec date: March 5, 2026 (repo-aligned revision)
 
 ## 0) Scope summary
-This spec merges:
-- Your 4 requested items:
-  1) Mobile navigation buttons show weird `???` characters (fix).
-  2) New page: Volume Heatmap (Orders by hour × day of week).
-  3) Capacity Forecasting (predict next week’s volume) on the same page as #2.
-  4) SLA Breach Histogram buckets (0–30m, 30–60m, 1–2h, 2h+) added to Promise Reliability page.
-- The Deep Research recommendations:
-  A) Global filters + shareable URLs (warehouse/from/to + common filters).
-  B) Parcel detail drilldown with timeline (raw + work-time adjusted).
-  C) True distribution analytics for delivery time + ETA error (histograms + percentiles).
-  D) Ingest health dashboard page (freshness + failures + dataset matrix).
-  E) Exception workflow depth (taxonomy, ownership, due-by, notes, MTTA/MTTR, bulk actions).
-  F) Chart interpretability fixes (ETA “distribution” label mismatch, route scatter axis labels/ref lines).
-  G) Click-through drilldowns from KPIs (chart/table → raw explorer / parcel detail).
+This revision keeps only work that is **not yet implemented** in the current repository.
 
-## 1) Product principles (for all work)
-- Keep existing pages working; no breaking API changes.
-- Prefer server-side aggregation for heavy analytics; avoid loading raw rows when a view/function can aggregate.
-- Make filters consistent across pages and shareable via URL query params.
-- Add “drilldown paths” (a KPI should lead to a list, then a parcel timeline).
+### Requested + research scope still pending
+1) Fix mobile navigation `???` glyphs.
+2) Add new `/volume` page with:
+   - Hour × day-of-week heatmap
+   - 7-day capacity forecast
+3) Add SLA breach histogram buckets to Promise Reliability.
+4) Standardize global filters with URL persistence across pages.
+5) Add parcel detail drilldown timeline and link from existing tables.
+6) Add true distribution analytics (delivery time + ETA error bins/percentiles).
+7) Add ingest health **page** and extend current ingest-health API to support dataset freshness matrix.
+8) Deepen exception workflow (bulk actions + ownership/taxonomy + MTTA/MTTR).
+9) Improve chart interpretability and drilldown navigation.
+
+### Already implemented baseline (out of scope for new tasks)
+- Core analytics pages and APIs already exist (dashboard, zone performance, exceptions, promise reliability, route efficiency, data quality, raw delivery stages).
+- `GET /api/ingest-health` already exists and returns summary/recent runs/daily trend.
+- `PATCH /api/exceptions` already supports single-row status updates.
+
+## 1) Product principles
+- Keep existing routes and behavior stable while adding enhancements.
+- Reuse current App Router patterns (`app/.../page.tsx`, `app/api/.../route.ts`).
+- Prefer server-side aggregation for heavy analytics.
+- Preserve existing CSV export conventions.
 
 ## 2) Global definitions
+### 2.1 Time and timezone
+- New bucketing (hour/day-of-week, forecasting series) must use the same local-time convention as existing KPI views.
 
-### 2.1 Time and timezone handling
-- All time-bucketing (hour, day-of-week) must use the same “local time” convention used by current derived views/pages.
-- When warehouse=ALL, bucketing must still be correct per-row local time, not a single timezone assumption (unless explicitly documented otherwise).
+### 2.2 Volume definition
+- Default volume metric = placed orders (`total_placed` semantics used in dashboard DoD).
 
-### 2.2 Orders / Volume definition
-Default “Volume” metric:
-- Count of placed orders (same meaning as existing DoD “total_placed” concept).
-If the repo already distinguishes placed vs delivered in KPI views, allow “Placed vs Delivered” toggle as a nice-to-have.
+### 2.3 SLA lateness
+- Late minutes = `max(0, delivered_at - promise_deadline_at)` in minutes.
+- Histogram includes late deliveries only.
 
-### 2.3 SLA lateness definition
-For delivered orders:
-- late_minutes = max(0, delivered_at - promise_deadline_at) in minutes
-Histogram includes late deliveries only.
+### 2.4 Parcel identity
+- Parcel routes/queries must include `warehouse` + `parcel_id`.
 
-### 2.4 Parcel identity and navigation
-Parcel drilldowns must identify parcels via:
-- warehouse (id or code) + parcel_id
-and must be linkable from:
-- Raw delivery stages table
-- Exceptions table
-- Data quality issues “View Records” list
-
-## 3) Global UX requirements (applies to all pages)
-- Standard filter bar: Warehouse + Date range (from/to) + Apply
-- Filters must persist in URL query params (shareable links).
-- Loading state, empty state, error state (with Retry).
-- Mobile responsive layouts: readable filters, tables, charts.
-- CSV export patterns consistent with existing export endpoint style.
+## 3) Global UX requirements
+- Consistent filter bar shape: warehouse/from/to + Apply.
+- Filters initialize from URL and write back to URL.
+- Loading/empty/error states for new pages/components.
+- Mobile-friendly layout for new views.
 
 ## 4) Feature requirements
 
-## 4.1 Mobile navigation `???` characters (Fix)
-### Requirements
-- Mobile navigation items must show clean labels (no stray glyphs before text).
-- Fix must not change desktop behavior.
+## 4.1 Mobile nav glyph fix
+- Replace broken icon glyph strings in mobile menu items with stable icons/text (no `???`).
+- Desktop nav labels/behavior must remain unchanged.
 
-### Acceptance criteria
-- Mobile viewport: no `???` characters on any nav item.
-- Desktop: nav unchanged and usable.
-- No console errors.
+## 4.2 Shared global filters + URL persistence
+- Introduce shared filter utilities/components.
+- Migrate existing pages incrementally (dashboard first, then remaining analytics pages).
+- Preserve `warehouse/from/to` when navigating via app links.
 
----
+## 4.3 New `/volume` page
+- 7×24 heatmap (hour vs weekday), missing buckets as zero.
+- Toggle: total vs avg-per-day.
+- Works with global filters.
 
-## 4.2 Global filters + shareable URLs (High priority)
-### Requirements
-- Implement a shared filter model across pages:
-  - warehouse (ALL or code)
-  - from (YYYY-MM-DD)
-  - to (YYYY-MM-DD)
-  - plus page-specific filters (severity/status/city/etc.)
-- Persist filter state in URL search params.
-- Filters should initialize from URL on page load.
-- Provide a consistent Apply behavior (either auto-fetch on change or explicit Apply; pick one approach and use it consistently).
+## 4.4 Capacity forecast on `/volume`
+- Show historical daily totals + exactly 7 future forecast points.
+- Include model notes and deterministic method description.
 
-### Pages to standardize
-- Dashboard
-- Zone performance
-- Raw delivery stages
-- Exceptions control tower
-- Promise reliability
-- Route efficiency
-- Data quality monitor
-- New Volume page
-- New Ingest health page
-- Parcel detail page (warehouse + parcel_id in route and/or query params)
+## 4.5 Promise Reliability: SLA breach histogram
+- Buckets: `0–30m`, `30–60m`, `1–2h`, `2h+`.
+- Show count + % late for each bucket.
+- Show delivered/on-time/late summary.
 
-### Acceptance criteria
-- Copy/paste URL reproduces the same view.
-- Navigating between pages keeps warehouse/from/to unless user changes them.
-- No duplicate filter implementations per page (shared component/hook used everywhere).
+## 4.6 Parcel detail drilldown
+- Add parcel detail route and API.
+- Timeline stages with raw vs work-time-adjusted durations (if available).
+- Make parcel IDs linkable from raw stages, exceptions, and DQ record views.
 
----
+## 4.7 Distribution analytics
+- Add true histogram/bin APIs + percentile trend for delivery time and ETA error.
+- Fix current Promise Reliability chart naming mismatch (`ETA Error Distribution` currently shows daily averages).
 
-## 4.3 New page: Volume Heatmap (Orders by hour × day of week)
-### Route
-- `/volume` (preferred)
+## 4.8 Ingest health page
+- Add `/ingest-health` UI page.
+- Extend existing ingest-health backend contract to return dataset freshness matrix + stale status thresholds.
 
-### Heatmap requirements
-- 7×24 grid:
-  - x = hour 0–23
-  - y = day-of-week (Mon–Sun unless your ops standard is different; document the choice)
-- Cell value: order count (placed by default).
-- Tooltip per cell: exact count (and optional % of total).
-- Legend for color scale.
+## 4.9 Exceptions workflow depth (incremental)
+- Extend current exception model/API/UI with assignee/category/due date/resolution fields.
+- Add bulk acknowledge/resolve and MTTA/MTTR + aging metrics.
 
-### Normalization toggle (should-have)
-- Total vs Avg-per-day:
-  - Avg-per-day should correct for date-range length.
-
-### Acceptance criteria
-- Heatmap updates correctly with warehouse/from/to filters.
-- Missing buckets render as 0 (no missing cells).
-
----
-
-## 4.4 Capacity forecasting (same page as Volume heatmap)
-### Requirements
-- Predict next 7 days volume for the selected warehouse (or ALL).
-- Show:
-  - historical daily totals (training window, e.g., last 8 weeks)
-  - forecast for next 7 days
-- Must include “Model notes” text describing the method (baseline is fine).
-
-### Quality indicators (nice-to-have)
-- Simple backtest metric (e.g., MAPE on last 4 weeks).
-- Optional confidence band.
-
-### Acceptance criteria
-- Always returns exactly 7 forecast points (next calendar days).
-- Deterministic behavior documented.
-
----
-
-## 4.5 SLA breach histogram (add to Promise Reliability page)
-### Requirements
-- Buckets for late deliveries only:
-  - 0–30m, 30–60m, 1–2h, 2h+
-- Show:
-  - count per bucket
-  - % of late deliveries per bucket
-- Show summary:
-  - delivered total
-  - on-time delivered
-  - late delivered
-
-### Acceptance criteria
-- Bucket totals reconcile with late delivered count.
-- Works for single warehouse and ALL.
-
----
-
-## 4.6 Parcel detail drilldown with timeline (High priority)
-### Route
-Choose one and standardize:
-- `/parcel/[warehouseCode]/[parcelId]` (recommended), OR
-- `/parcel?warehouse=...&parcel_id=...`
-
-### Requirements
-- Header: parcel id + warehouse + key flags:
-  - waiting address
-  - cutoff status
-  - on-time / late (and SLA minutes used)
-- Timeline section:
-  - key timestamps for phases/stages already modeled
-  - duration bars:
-    - raw duration
-    - work-time adjusted duration (if available)
-- Related items:
-  - exceptions (if any)
-  - Freshdesk tickets (if available)
-  - data quality flags (if any)
-
-### Navigation / linking
-- Make parcel_id clickable in:
-  - Raw delivery stages table
-  - Exceptions table
-  - DQ “View Records” list
-Each link opens parcel detail page with current filters preserved where sensible.
-
-### Acceptance criteria
-- Parcel detail loads for valid parcel ids quickly.
-- Timeline is readable on mobile (stacked cards is fine).
-- Clicking from tables reliably navigates to the correct parcel.
-
----
-
-## 4.7 True distribution analytics (Delivery time + ETA error)
-### Where to place
-Option A (recommended): New page `/distributions`
-Option B: Add tabs/sections on Dashboard
-
-### Must-have visuals
-1) Delivery time distribution (histogram bins)
-2) Delivery percentiles trend (p50/p90/p95) over time
-3) ETA error:
-   - Signed error distribution (bias)
-   - Absolute error distribution (tail)
-
-### Fix naming mismatch
-- The current “ETA error distribution” must be renamed or changed so labels match what it actually shows.
-
-### Acceptance criteria
-- Histograms are real distributions (not daily averages).
-- Percentiles align with underlying data.
-- Clear axis labels and units.
-
----
-
-## 4.8 Ingest health dashboard page (Medium priority)
-### Route
-- `/ingest-health`
-
-### Requirements
-- Show ingestion freshness by:
-  - warehouse × dataset (matrix/table)
-  - last ingest time
-  - status badge (fresh / stale / failed)
-- Show recent failures and anomalies:
-  - failed runs
-  - row count anomalies (optional initial version)
-- Deep links:
-  - to Upload page
-  - to dataset docs (if present)
-- Integrate with Data Quality monitor (optional):
-  - warn when data is stale
-
-### Acceptance criteria
-- Shows last ingest per dataset and warehouse (using existing ingest_runs logic).
-- Clear stale thresholds (configurable).
-
----
-
-## 4.9 Exceptions taxonomy + workflow depth (Medium priority)
-### Data additions (schema)
-Add fields (exact names can vary, but the concept must exist):
-- assigned_to
-- category + subcategory
-- due_at
-- resolution_code
-- notes (either text or separate notes table)
-- detected_at/ack_at/resolved_at (if not already present)
-
-### UI requirements
-- Exceptions table supports:
-  - bulk acknowledge/resolve
-  - side drawer “Exception details” editor
-  - filters by category/assignee/due status
-- Add operational metrics:
-  - MTTA (ack - detected)
-  - MTTR (resolve - detected)
-  - aging buckets for open exceptions
-
-### Acceptance criteria
-- Bulk actions work reliably and show results.
-- MTTA/MTTR computed correctly for rows with timestamps.
-
----
-
-## 4.10 Chart interpretability fixes (Low effort, do early)
-### Requirements
-- Route efficiency scatter:
-  - axis labels + units
-  - optional reference lines/targets (documented)
-- ETA error chart:
-  - rename if it’s not a distribution, OR
-  - replace with a real distribution chart as part of the distributions work
-
-### Acceptance criteria
-- Charts have labeled axes and clear units.
-- Titles match what the chart shows.
-
----
-
-## 4.11 Click-through drilldowns (High ROI)
-### Requirements
-- Dashboard On-time chart:
-  - clicking a day opens Raw delivery stages filtered to that date and KPI=late (and warehouse)
-- Zone performance table:
-  - clicking a city opens a City report (or applies city filter in place)
-- From any list/table row, enable “Open parcel” (parcel detail page)
-
-### Acceptance criteria
-- Drilldown links preserve key filters (warehouse/from/to).
-- Drilldown targets load with correct filters applied.
+## 4.10 Chart interpretability + drilldowns
+- Add explicit axis labels/units to route-efficiency scatter.
+- Add click-through drilldowns (chart/table → filtered raw view and parcel detail).
