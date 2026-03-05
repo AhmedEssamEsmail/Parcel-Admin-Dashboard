@@ -1,11 +1,15 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 
 import { AppNav } from "@/components/layout/nav";
 import { WAREHOUSE_CODES } from "@/lib/csv/mappings";
 
-export default function SchedulePage() {
+type SchedulePageContentProps = {
+  embedded?: boolean;
+};
+
+export function SchedulePageContent({ embedded = false }: SchedulePageContentProps) {
   const [warehouseCode, setWarehouseCode] = useState("KUWAIT");
   const [shiftDate, setShiftDate] = useState("");
   const [shiftStart, setShiftStart] = useState("");
@@ -46,63 +50,74 @@ export default function SchedulePage() {
     }
   };
 
+  const content = (
+    <section className="card grid two">
+      <h1 style={{ gridColumn: "1 / -1" }}>Shift Override</h1>
+
+      <label>
+        Warehouse
+        <select
+          value={warehouseCode}
+          onChange={(event) => setWarehouseCode(event.target.value)}
+        >
+          {WAREHOUSE_CODES.map((code) => (
+            <option key={code} value={code}>
+              {code}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label>
+        Shift Date
+        <input
+          type="date"
+          value={shiftDate}
+          onChange={(event) => setShiftDate(event.target.value)}
+        />
+      </label>
+
+      <label>
+        Shift Start (HH:mm)
+        <input
+          type="time"
+          value={shiftStart}
+          onChange={(event) => setShiftStart(event.target.value)}
+        />
+      </label>
+
+      <label>
+        Shift End (HH:mm)
+        <input
+          type="time"
+          value={shiftEnd}
+          onChange={(event) => setShiftEnd(event.target.value)}
+        />
+      </label>
+
+      <div className="btn-row" style={{ gridColumn: "1 / -1" }}>
+        <button className="btn" type="button" onClick={() => void save()} disabled={loading}>
+          {loading ? "Saving..." : "Save Override"}
+        </button>
+      </div>
+
+      {status && <p className="success">{status}</p>}
+      {error && <p className="error">{error}</p>}
+    </section>
+  );
+
+  if (embedded) {
+    return content;
+  }
+
   return (
     <main className="page-wrap">
       <AppNav />
-
-      <section className="card grid two">
-        <h1 style={{ gridColumn: "1 / -1" }}>Shift Override</h1>
-
-        <label>
-          Warehouse
-          <select
-            value={warehouseCode}
-            onChange={(event) => setWarehouseCode(event.target.value)}
-          >
-            {WAREHOUSE_CODES.map((code) => (
-              <option key={code} value={code}>
-                {code}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label>
-          Shift Date
-          <input
-            type="date"
-            value={shiftDate}
-            onChange={(event) => setShiftDate(event.target.value)}
-          />
-        </label>
-
-        <label>
-          Shift Start (HH:mm)
-          <input
-            type="time"
-            value={shiftStart}
-            onChange={(event) => setShiftStart(event.target.value)}
-          />
-        </label>
-
-        <label>
-          Shift End (HH:mm)
-          <input
-            type="time"
-            value={shiftEnd}
-            onChange={(event) => setShiftEnd(event.target.value)}
-          />
-        </label>
-
-        <div className="btn-row" style={{ gridColumn: "1 / -1" }}>
-          <button className="btn" type="button" onClick={() => void save()} disabled={loading}>
-            {loading ? "Saving..." : "Save Override"}
-          </button>
-        </div>
-
-        {status && <p className="success">{status}</p>}
-        {error && <p className="error">{error}</p>}
-      </section>
+      {content}
     </main>
   );
+}
+
+export default function SchedulePage() {
+  return <SchedulePageContent />;
 }

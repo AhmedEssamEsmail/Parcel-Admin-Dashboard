@@ -1,8 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
+import { DataQualityPageContent } from "@/app/data-quality/page";
+import { IngestHealthPageContent } from "@/app/ingest-health/page";
+import { SchedulePageContent } from "@/app/settings/schedule/page";
+import { UploadPageContent } from "@/app/settings/upload/page";
 import { AppNav } from "@/components/layout/nav";
 
 type Warehouse = {
@@ -153,35 +156,11 @@ export default function SettingsPage() {
       {activeTab === "shifts" && <ShiftsTab />}
       {activeTab === "holidays" && <HolidaysTab />}
       {activeTab === "templates" && <ShiftTemplatesTab />}
-      {activeTab === "upload" && <EmbeddedTab title="Upload" path="/settings/upload" />}
-      {activeTab === "schedule" && <EmbeddedTab title="Schedule" path="/settings/schedule" />}
-      {activeTab === "data-quality" && <EmbeddedTab title="Data Quality" path="/data-quality" />}
-      {activeTab === "ingest-health" && <EmbeddedTab title="Ingest Health" path="/ingest-health" />}
+      {activeTab === "upload" && <UploadPageContent embedded />}
+      {activeTab === "schedule" && <SchedulePageContent embedded />}
+      {activeTab === "data-quality" && <DataQualityPageContent embedded />}
+      {activeTab === "ingest-health" && <IngestHealthPageContent embedded />}
     </main>
-  );
-}
-
-function EmbeddedTab({ title, path }: { title: string; path: string }) {
-  return (
-    <section className="card">
-      <div className="btn-row" style={{ justifyContent: "space-between", marginBottom: 10 }}>
-        <h2 style={{ margin: 0 }}>{title}</h2>
-        <Link className="btn-ghost" href={path}>
-          Open Full Page
-        </Link>
-      </div>
-      <iframe
-        title={title}
-        src={path}
-        style={{
-          width: "100%",
-          minHeight: "75vh",
-          border: "1px solid var(--border, #e5e7eb)",
-          borderRadius: 12,
-          background: "#fff",
-        }}
-      />
-    </section>
   );
 }
 

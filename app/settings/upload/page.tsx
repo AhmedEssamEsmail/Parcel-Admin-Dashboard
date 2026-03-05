@@ -1,50 +1,31 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { AppNav } from "@/components/layout/nav";
-import { CsvPreview } from "@/components/upload/csv-preview";
-import { DATASET_OPTIONS, WAREHOUSE_CODES } from "@/lib/csv/mappings";
+import { DATASET_OPTIONS } from "@/lib/csv/mappings";
+import { detectWarehouseFromRow, inferWarehouseCodeFromText } from "@/lib/csv/warehouse";
 import { parseCsvFile } from "@/lib/csv/parse";
 import { normalizeDatasetRows } from "@/lib/ingest/normalizers";
-import type { CsvRow, DatasetType, IngestError, IngestWarning } from "@/lib/ingest/types";
-
-const DEFAULTS_STORAGE_KEY = "parcel-admin-upload-defaults-v1";
-
-type UploadDefaults = {
-  warehouseCode: string;
-  datasetType: DatasetType;
-};
+import type { CsvRow, DatasetType } from "@/lib/ingest/types";
 
 type UploadFileConfig = {
   id: string;
   file: File;
-  warehouseCode: string;
-  datasetType: DatasetType;
-  warehouseAutoDetected: boolean;
-  datasetAutoDetected: boolean;
+  rows: CsvRow[];
+  datasetType: DatasetType | null;
+  warehouseCodes: string[];
+  countryLabels: string[];
+  unknownWarehouseRows: number;
+  detectionErrors: string[];
+  ready: boolean;
 };
 
-type DetectResult<T> = {
-  value: T;
-  autoDetected: boolean;
+type UploadIssue = {
+  fileName: string;
+  row: number;
+  message: string;
 };
-
-function chunkArray<T>(items: T[], chunkSize: number): T[][] {
-  const chunks: T[][] = [];
-  for (let i = 0; i < items.length; i += chunkSize) {
-    chunks.push(items.slice(i, i + chunkSize));
-  }
-  return chunks;
-}
-
-function toSearchable(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 const DATASET_HINTS: Array<{ type: DatasetType; hints: string[] }> = [
   { type: "delivery_details", hints: ["delivery details", "delivery detail"] },
@@ -72,300 +53,357 @@ const DATASET_HINTS: Array<{ type: DatasetType; hints: string[] }> = [
   },
 ];
 
-const WAREHOUSE_HINTS: Array<{ code: string; hints: string[] }> = [
-  { code: "KUWAIT", hints: ["kuwait"] },
-  { code: "RIYADH", hints: ["riyadh"] },
-  { code: "DAMMAM", hints: ["dammam"] },
-  { code: "JEDDAH", hints: ["jeddah"] },
-  { code: "QATAR", hints: ["qatar", "doha"] },
-  { code: "UAE", hints: ["uae", "united arab emirates", "dubai", "abu dhabi"] },
-  { code: "BAHRAIN", hints: ["bahrain", "manama"] },
-];
+const WAREHOUSE_COUNTRY_LABELS: Record<string, string> = {
+  KUWAIT: "Kuwait",
+  RIYADH: "Saudi Arabia",
+  DAMMAM: "Saudi Arabia",
+  JEDDAH: "Saudi Arabia",
+  QATAR: "Qatar",
+  UAE: "United Arab Emirates",
+  BAHRAIN: "Bahrain",
+};
 
-function detectDatasetType(fileName: string, fallback: DatasetType): DetectResult<DatasetType> {
+const DATASET_LABEL_MAP = new Map(DATASET_OPTIONS.map((item) => [item.value, item.label]));
+
+function chunkArray<T>(items: T[], chunkSize: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += chunkSize) {
+    chunks.push(items.slice(i, i + chunkSize));
+  }
+  return chunks;
+}
+
+function toSearchable(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function detectDatasetType(fileName: string): DatasetType | null {
   const searchableFileName = toSearchable(fileName);
 
   for (const item of DATASET_HINTS) {
     if (item.hints.some((hint) => searchableFileName.includes(hint))) {
-      return { value: item.type, autoDetected: true };
+      return item.type;
     }
   }
 
-  return { value: fallback, autoDetected: false };
+  return null;
 }
 
-function detectWarehouseCode(fileName: string, fallback: string): DetectResult<string> {
-  const searchableFileName = toSearchable(fileName);
+function detectWarehouseCodeForRow(row: CsvRow): string | null {
+  const fromCandidates = detectWarehouseFromRow(row).warehouseCode;
+  if (fromCandidates) {
+    return fromCandidates;
+  }
 
-  for (const item of WAREHOUSE_HINTS) {
-    if (item.hints.some((hint) => searchableFileName.includes(hint))) {
-      return { value: item.code, autoDetected: true };
+  for (const value of Object.values(row)) {
+    if (!value) continue;
+    const inferred = inferWarehouseCodeFromText(String(value));
+    if (inferred) {
+      return inferred;
     }
   }
 
-  return { value: fallback, autoDetected: false };
+  return null;
 }
 
-function toUploadFileConfig(file: File, index: number, defaults: UploadDefaults): UploadFileConfig {
-  const datasetDetection = detectDatasetType(file.name, defaults.datasetType);
-  const warehouseDetection = detectWarehouseCode(file.name, defaults.warehouseCode);
+function detectWarehouseSummary(rows: CsvRow[]): {
+  warehouseCodes: string[];
+  unknownWarehouseRows: number;
+} {
+  const warehouseCodes = new Set<string>();
+  let unknownWarehouseRows = 0;
+
+  rows.forEach((row) => {
+    const warehouseCode = detectWarehouseCodeForRow(row);
+    if (!warehouseCode) {
+      unknownWarehouseRows += 1;
+      return;
+    }
+    warehouseCodes.add(warehouseCode);
+  });
 
   return {
-    id: `${file.name}-${file.lastModified}-${file.size}-${index}`,
-    file,
-    warehouseCode: warehouseDetection.value,
-    datasetType: datasetDetection.value,
-    warehouseAutoDetected: warehouseDetection.autoDetected,
-    datasetAutoDetected: datasetDetection.autoDetected,
+    warehouseCodes: Array.from(warehouseCodes).sort(),
+    unknownWarehouseRows,
   };
 }
 
-export default function UploadPage() {
-  const [defaultWarehouseCode, setDefaultWarehouseCode] = useState<string>("KUWAIT");
-  const [defaultDatasetType, setDefaultDatasetType] = useState<DatasetType>("delivery_details");
-  const [defaultsLoaded, setDefaultsLoaded] = useState(false);
+function mapCountries(warehouseCodes: string[]): string[] {
+  return Array.from(
+    new Set(warehouseCodes.map((code) => WAREHOUSE_COUNTRY_LABELS[code] ?? code)),
+  ).sort();
+}
 
+async function analyzeFile(file: File, index: number): Promise<UploadFileConfig> {
+  const id = `${file.name}-${file.lastModified}-${file.size}-${index}`;
+
+  try {
+    const rows = await parseCsvFile(file);
+    const datasetType = detectDatasetType(file.name);
+    const { warehouseCodes, unknownWarehouseRows } = detectWarehouseSummary(rows);
+
+    const detectionErrors: string[] = [];
+    if (rows.length === 0) {
+      detectionErrors.push("No CSV rows were detected.");
+    }
+    if (!datasetType) {
+      detectionErrors.push("Dataset type could not be detected from the file name.");
+    }
+    if (warehouseCodes.length === 0) {
+      detectionErrors.push("No warehouse/country could be detected from CSV rows.");
+    }
+    if (unknownWarehouseRows > 0) {
+      detectionErrors.push(
+        `Warehouse/country detection failed for ${unknownWarehouseRows} row(s).`,
+      );
+    }
+
+    return {
+      id,
+      file,
+      rows,
+      datasetType,
+      warehouseCodes,
+      countryLabels: mapCountries(warehouseCodes),
+      unknownWarehouseRows,
+      detectionErrors,
+      ready: detectionErrors.length === 0,
+    };
+  } catch (error) {
+    return {
+      id,
+      file,
+      rows: [],
+      datasetType: null,
+      warehouseCodes: [],
+      countryLabels: [],
+      unknownWarehouseRows: 0,
+      detectionErrors: [
+        error instanceof Error ? error.message : "Failed to parse CSV file.",
+      ],
+      ready: false,
+    };
+  }
+}
+
+type UploadPageContentProps = {
+  embedded?: boolean;
+};
+
+export function UploadPageContent({ embedded = false }: UploadPageContentProps) {
   const [fileConfigs, setFileConfigs] = useState<UploadFileConfig[]>([]);
-  const [previewRows, setPreviewRows] = useState<CsvRow[]>([]);
-  const [previewFileName, setPreviewFileName] = useState<string | null>(null);
-  const [previewDatasetType, setPreviewDatasetType] = useState<DatasetType | null>(null);
-  const [previewWarehouse, setPreviewWarehouse] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [detecting, setDetecting] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState<IngestError[]>([]);
-  const [warnings, setWarnings] = useState<IngestWarning[]>([]);
+  const [errors, setErrors] = useState<UploadIssue[]>([]);
+  const [warnings, setWarnings] = useState<UploadIssue[]>([]);
   const [result, setResult] = useState<{
     parsed: number;
     inserted: number;
     ignored: number;
+    filesProcessed: number;
+    warehousesTouched: number;
   } | null>(null);
 
-  useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(DEFAULTS_STORAGE_KEY);
-      if (!raw) {
-        setDefaultsLoaded(true);
-        return;
-      }
+  const blockingIssues = useMemo(
+    () =>
+      fileConfigs.flatMap((config) =>
+        config.detectionErrors.map((message) => ({ fileName: config.file.name, message })),
+      ),
+    [fileConfigs],
+  );
 
-      const parsed = JSON.parse(raw) as Partial<UploadDefaults>;
+  const canSubmit =
+    fileConfigs.length > 0 &&
+    !detecting &&
+    !loading &&
+    blockingIssues.length === 0 &&
+    fileConfigs.every((config) => config.ready);
 
-      if (
-        typeof parsed.warehouseCode === "string" &&
-        WAREHOUSE_CODES.includes(parsed.warehouseCode as (typeof WAREHOUSE_CODES)[number])
-      ) {
-        setDefaultWarehouseCode(parsed.warehouseCode);
-      }
+  const onFileSelection = async (selectedFiles: File[]) => {
+    setPreviewOpen(false);
+    setErrors([]);
+    setWarnings([]);
+    setResult(null);
 
-      if (
-        typeof parsed.datasetType === "string" &&
-        DATASET_OPTIONS.some((option) => option.value === parsed.datasetType)
-      ) {
-        setDefaultDatasetType(parsed.datasetType as DatasetType);
-      }
-    } finally {
-      setDefaultsLoaded(true);
+    if (selectedFiles.length === 0) {
+      setFileConfigs([]);
+      return;
     }
-  }, []);
 
-  useEffect(() => {
-    if (!defaultsLoaded) return;
-
-    const defaults: UploadDefaults = {
-      warehouseCode: defaultWarehouseCode,
-      datasetType: defaultDatasetType,
-    };
-
-    window.localStorage.setItem(DEFAULTS_STORAGE_KEY, JSON.stringify(defaults));
-  }, [defaultWarehouseCode, defaultDatasetType, defaultsLoaded]);
-
-  const canSubmit = fileConfigs.length > 0 && !loading;
-
-  const submitWithPreview = async () => {
-    if (!canSubmit) return;
-
-    const config = fileConfigs[0];
-    if (!config) return;
-
-    try {
-      const rows = await parseCsvFile(config.file);
-      setPreviewRows(rows);
-      setPreviewFileName(config.file.name);
-      setPreviewDatasetType(config.datasetType);
-      setPreviewWarehouse(config.warehouseCode);
-      setPreviewOpen(true);
-    } catch (error) {
-      setErrors([
-        {
-          row: 0,
-          message: error instanceof Error ? error.message : "Failed to parse CSV.",
-        },
-      ]);
-    }
+    setDetecting(true);
+    const configs = await Promise.all(
+      selectedFiles.map((file, index) => analyzeFile(file, index)),
+    );
+    setFileConfigs(configs);
+    setDetecting(false);
   };
 
-  const confirmPreview = async (validRows: CsvRow[]) => {
-    if (!previewDatasetType || !previewWarehouse) return;
+  const removeFile = (id: string) => {
+    setPreviewOpen(false);
+    setFileConfigs((current) => current.filter((item) => item.id !== id));
+  };
+
+  const clearAll = () => {
+    setPreviewOpen(false);
+    setFileConfigs([]);
+    setErrors([]);
+    setWarnings([]);
+    setResult(null);
+  };
+
+  const submitWithPreview = () => {
+    if (!canSubmit) return;
+    setPreviewOpen(true);
+  };
+
+  const confirmPreview = async () => {
+    if (!canSubmit) return;
+
     setPreviewOpen(false);
     setLoading(true);
     setErrors([]);
     setWarnings([]);
     setResult(null);
 
-    try {
-      const {
-        validRows: normalizedRows,
-        errors: normalizeErrors,
-        warnings: normalizeWarnings,
-      } = normalizeDatasetRows(
-        previewDatasetType,
-        validRows,
-      );
-      setErrors(normalizeErrors);
-      setWarnings(normalizeWarnings);
-      if (normalizedRows.length === 0) {
-        setLoading(false);
-        return;
+    const uploadErrors: UploadIssue[] = [];
+    const uploadWarnings: UploadIssue[] = [];
+    const touchedWarehouses = new Set<string>();
+
+    let parsed = 0;
+    let inserted = 0;
+    let ignored = 0;
+    let filesProcessed = 0;
+
+    for (const config of fileConfigs) {
+      if (!config.ready || !config.datasetType) {
+        continue;
       }
 
-      const chunks = chunkArray(normalizedRows, 500);
-      let insertedCount = 0;
-      let ignoredCount = 0;
+      filesProcessed += 1;
+      parsed += config.rows.length;
 
-      for (const chunk of chunks) {
-        const response = await fetch("/api/ingest", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            warehouseCode: previewWarehouse,
-            datasetType: previewDatasetType,
-            rows: chunk,
-            fileName: previewFileName,
-            parsedCount: validRows.length,
-            warningCount: normalizeWarnings.length,
-            errorCount: normalizeErrors.length,
-          }),
-        });
+      const groupedRows = new Map<string, CsvRow[]>();
 
-        const payload = (await response.json()) as {
-          insertedCount?: number;
-          ignoredCount?: number;
-          error?: string;
-        };
-
-        if (!response.ok) {
-          setErrors([
-            {
-              row: 0,
-              message: payload.error ?? "Ingestion failed.",
-            },
-          ]);
-          break;
+      config.rows.forEach((row, index) => {
+        const warehouseCode = detectWarehouseCodeForRow(row);
+        if (!warehouseCode) {
+          uploadErrors.push({
+            fileName: config.file.name,
+            row: index + 2,
+            message: "Warehouse/country could not be detected for this row.",
+          });
+          return;
         }
 
-        insertedCount += payload.insertedCount ?? 0;
-        ignoredCount += payload.ignoredCount ?? 0;
+        const bucket = groupedRows.get(warehouseCode) ?? [];
+        bucket.push(row);
+        groupedRows.set(warehouseCode, bucket);
+      });
+
+      for (const [warehouseCode, rows] of groupedRows) {
+        touchedWarehouses.add(warehouseCode);
+
+        const {
+          validRows: normalizedRows,
+          errors: normalizeErrors,
+          warnings: normalizeWarnings,
+        } = normalizeDatasetRows(config.datasetType, rows);
+
+        normalizeErrors.forEach((error) => {
+          uploadErrors.push({
+            fileName: config.file.name,
+            row: error.row,
+            message: error.message,
+          });
+        });
+
+        normalizeWarnings.forEach((warning) => {
+          uploadWarnings.push({
+            fileName: config.file.name,
+            row: warning.row,
+            message: warning.message,
+          });
+        });
+
+        if (normalizedRows.length === 0) {
+          continue;
+        }
+
+        const chunks = chunkArray(normalizedRows, 500);
+
+        for (const chunk of chunks) {
+          const response = await fetch("/api/ingest", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              warehouseCode,
+              datasetType: config.datasetType,
+              rows: chunk,
+              fileName: config.file.name,
+              parsedCount: rows.length,
+              warningCount: normalizeWarnings.length,
+              errorCount: normalizeErrors.length,
+            }),
+          });
+
+          const payload = (await response.json()) as {
+            insertedCount?: number;
+            ignoredCount?: number;
+            error?: string;
+          };
+
+          if (!response.ok) {
+            uploadErrors.push({
+              fileName: config.file.name,
+              row: 0,
+              message: payload.error ?? "Ingestion failed.",
+            });
+            break;
+          }
+
+          inserted += payload.insertedCount ?? 0;
+          ignored += payload.ignoredCount ?? 0;
+        }
       }
-
-      setResult({ parsed: validRows.length, inserted: insertedCount, ignored: ignoredCount });
-    } catch (error) {
-      setErrors([
-        {
-          row: 0,
-          message: error instanceof Error ? error.message : "Upload failed.",
-        },
-      ]);
-    } finally {
-      setLoading(false);
     }
+
+    setErrors(uploadErrors);
+    setWarnings(uploadWarnings);
+    setResult({
+      parsed,
+      inserted,
+      ignored,
+      filesProcessed,
+      warehousesTouched: touchedWarehouses.size,
+    });
+    setLoading(false);
   };
 
-  const onFileSelection = (selectedFiles: File[]) => {
-    const defaults: UploadDefaults = {
-      warehouseCode: defaultWarehouseCode,
-      datasetType: defaultDatasetType,
-    };
-
-    const configs = selectedFiles.map((file, index) => toUploadFileConfig(file, index, defaults));
-
-    setFileConfigs(configs);
-    setErrors([]);
-    setWarnings([]);
-    setResult(null);
-  };
-
-  const updateFileConfig = (
-    id: string,
-    patch: Partial<Pick<UploadFileConfig, "warehouseCode" | "datasetType">>,
-  ) => {
-    setFileConfigs((current) =>
-      current.map((item) => {
-        if (item.id !== id) return item;
-
-        return {
-          ...item,
-          ...patch,
-          warehouseAutoDetected:
-            patch.warehouseCode === undefined ? item.warehouseAutoDetected : false,
-          datasetAutoDetected:
-            patch.datasetType === undefined ? item.datasetAutoDetected : false,
-        };
-      }),
-    );
-  };
-
-  const removeFile = (id: string) => {
-    setFileConfigs((current) => current.filter((item) => item.id !== id));
-  };
-
-  return (
-    <main className="page-wrap">
-      <AppNav />
-
-      <section className="card grid two">
+  const content = (
+    <>
+      <section className="card">
+        <h2>Upload CSV Files</h2>
         <label>
-          Default Warehouse (remembered)
-          <select
-            value={defaultWarehouseCode}
-            onChange={(event) => setDefaultWarehouseCode(event.target.value)}
-          >
-            {WAREHOUSE_CODES.map((code) => (
-              <option key={code} value={code}>
-                {code}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label>
-          Default Dataset Type (remembered)
-          <select
-            value={defaultDatasetType}
-            onChange={(event) => setDefaultDatasetType(event.target.value as DatasetType)}
-          >
-            {DATASET_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label style={{ gridColumn: "1 / -1" }}>
           CSV Files
           <input
             type="file"
             accept=".csv,text/csv"
             multiple
-            onChange={(event) => onFileSelection(Array.from(event.target.files ?? []))}
+            onChange={(event) => void onFileSelection(Array.from(event.target.files ?? []))}
+            disabled={detecting || loading}
           />
         </label>
-
-        <p className="muted" style={{ gridColumn: "1 / -1" }}>
+        <p className="muted">
           {fileConfigs.length === 0
             ? "No files selected"
-            : `${fileConfigs.length} file(s) selected. Dataset and warehouse are auto-filled from file names when possible.`}
+            : `${fileConfigs.length} file(s) selected. Dataset and country detection are automatic.`}
         </p>
+        {detecting && <p className="muted">Analyzing selected files...</p>}
       </section>
 
       {fileConfigs.length > 0 && (
@@ -376,8 +414,9 @@ export default function UploadPage() {
               <thead>
                 <tr>
                   <th>File</th>
-                  <th>Warehouse</th>
-                  <th>Dataset</th>
+                  <th>Detected Dataset</th>
+                  <th>Countries Included</th>
+                  <th>Warehouse Split</th>
                   <th>Detection</th>
                   <th>Action</th>
                 </tr>
@@ -387,51 +426,46 @@ export default function UploadPage() {
                   <tr key={config.id}>
                     <td>{config.file.name}</td>
                     <td>
-                      <select
-                        value={config.warehouseCode}
-                        onChange={(event) =>
-                          updateFileConfig(config.id, { warehouseCode: event.target.value })
-                        }
-                      >
-                        {WAREHOUSE_CODES.map((code) => (
-                          <option key={code} value={code}>
-                            {code}
-                          </option>
-                        ))}
-                      </select>
+                      {config.datasetType
+                        ? (DATASET_LABEL_MAP.get(config.datasetType) ?? config.datasetType)
+                        : "Not detected"}
                     </td>
-                    <td>
-                      <select
-                        value={config.datasetType}
-                        onChange={(event) =>
-                          updateFileConfig(config.id, {
-                            datasetType: event.target.value as DatasetType,
-                          })
-                        }
-                      >
-                        {DATASET_OPTIONS.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
+                    <td>{config.countryLabels.length > 0 ? config.countryLabels.join(", ") : "Not detected"}</td>
+                    <td>{config.warehouseCodes.length > 0 ? config.warehouseCodes.join(", ") : "-"}</td>
                     <td>
                       <span className="badge">
-                        {config.warehouseAutoDetected || config.datasetAutoDetected
-                          ? "Auto"
-                          : "Default"}
+                        {config.ready ? "Auto" : "Blocked"}
                       </span>
                     </td>
                     <td>
-                      <button
-                        className="btn-ghost"
-                        type="button"
-                        onClick={() => removeFile(config.id)}
-                      >
+                      <button className="btn-ghost" type="button" onClick={() => removeFile(config.id)}>
                         Remove
                       </button>
                     </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {blockingIssues.length > 0 && (
+        <section className="table-card">
+          <h3>Detection Blocking Issues</h3>
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>File</th>
+                  <th>Issue</th>
+                </tr>
+              </thead>
+              <tbody>
+                {blockingIssues.map((issue, index) => (
+                  <tr key={`${issue.fileName}-${index}`}>
+                    <td>{issue.fileName}</td>
+                    <td>{issue.message}</td>
                   </tr>
                 ))}
               </tbody>
@@ -444,21 +478,16 @@ export default function UploadPage() {
         <p className="muted">
           {fileConfigs.length === 0
             ? "Select one or more CSV files to upload."
-            : `${fileConfigs.length} file(s) ready.`}
+            : `${fileConfigs.length} file(s) ready for preview.`}
         </p>
         <div className="btn-row">
-          <button
-            className="btn-ghost"
-            type="button"
-            onClick={() => setFileConfigs([])}
-            disabled={loading || fileConfigs.length === 0}
-          >
+          <button className="btn-ghost" type="button" onClick={clearAll} disabled={loading || detecting || fileConfigs.length === 0}>
             Clear
           </button>
           <button
             className="upload-submit-btn"
             type="button"
-            onClick={() => void submitWithPreview()}
+            onClick={submitWithPreview}
             disabled={!canSubmit}
           >
             {loading ? "Uploading..." : "Preview & Upload"}
@@ -466,9 +495,54 @@ export default function UploadPage() {
         </div>
       </section>
 
+      {previewOpen && (
+        <section className="card">
+          <h3>Upload Preview</h3>
+          <p className="muted">
+            All selected files will upload in one run, and each file will be auto-split by detected warehouse.
+          </p>
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>File</th>
+                  <th>Dataset</th>
+                  <th>Countries Included</th>
+                  <th>Rows</th>
+                  <th>Detected Warehouses</th>
+                </tr>
+              </thead>
+              <tbody>
+                {fileConfigs.map((config) => (
+                  <tr key={`preview-${config.id}`}>
+                    <td>{config.file.name}</td>
+                    <td>
+                      {config.datasetType
+                        ? (DATASET_LABEL_MAP.get(config.datasetType) ?? config.datasetType)
+                        : "Not detected"}
+                    </td>
+                    <td>{config.countryLabels.join(", ")}</td>
+                    <td>{config.rows.length}</td>
+                    <td>{config.warehouseCodes.join(", ")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="btn-row" style={{ marginTop: 12 }}>
+            <button className="btn" type="button" onClick={() => void confirmPreview()} disabled={loading}>
+              {loading ? "Uploading..." : "Confirm Upload"}
+            </button>
+            <button className="btn-ghost" type="button" onClick={() => setPreviewOpen(false)} disabled={loading}>
+              Back
+            </button>
+          </div>
+        </section>
+      )}
+
       {result && (
         <section className="card success">
-          Parsed: {result.parsed} | Inserted: {result.inserted} | Ignored: {result.ignored}
+          Parsed: {result.parsed} | Inserted: {result.inserted} | Ignored: {result.ignored} | Files: {result.filesProcessed} | Warehouses: {result.warehousesTouched}
         </section>
       )}
 
@@ -479,14 +553,16 @@ export default function UploadPage() {
             <table>
               <thead>
                 <tr>
+                  <th>File</th>
                   <th>Row</th>
                   <th>Message</th>
                 </tr>
               </thead>
               <tbody>
                 {errors.map((error, index) => (
-                  <tr key={`${error.row}-${index}`}>
-                    <td>{error.row}</td>
+                  <tr key={`${error.fileName}-${error.row}-${index}`}>
+                    <td>{error.fileName}</td>
+                    <td>{error.row > 0 ? error.row : "-"}</td>
                     <td>{error.message}</td>
                   </tr>
                 ))}
@@ -503,14 +579,16 @@ export default function UploadPage() {
             <table>
               <thead>
                 <tr>
+                  <th>File</th>
                   <th>Row</th>
                   <th>Message</th>
                 </tr>
               </thead>
               <tbody>
                 {warnings.map((warning, index) => (
-                  <tr key={`${warning.row}-${index}`}>
-                    <td>{warning.row}</td>
+                  <tr key={`${warning.fileName}-${warning.row}-${index}`}>
+                    <td>{warning.fileName}</td>
+                    <td>{warning.row > 0 ? warning.row : "-"}</td>
                     <td>{warning.message}</td>
                   </tr>
                 ))}
@@ -519,17 +597,21 @@ export default function UploadPage() {
           </div>
         </section>
       )}
+    </>
+  );
 
-      {previewOpen && previewFileName && (
-        <section className="card">
-          <CsvPreview
-            data={previewRows}
-            filename={previewFileName}
-            onConfirm={(rows) => void confirmPreview(rows)}
-            onCancel={() => setPreviewOpen(false)}
-          />
-        </section>
-      )}
+  if (embedded) {
+    return content;
+  }
+
+  return (
+    <main className="page-wrap">
+      <AppNav />
+      {content}
     </main>
   );
+}
+
+export default function UploadPage() {
+  return <UploadPageContent />;
 }
