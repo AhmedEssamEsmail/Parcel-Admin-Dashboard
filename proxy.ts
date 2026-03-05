@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import {
-  getRequestedWarehouseCode,
-  parseAccessScope,
-} from "@/lib/auth/access";
-import { AUTH_COOKIE_NAME } from "@/lib/auth/constants";
+  AUTH_COOKIE_NAME,
+  AUTH_COOKIE_VALUE,
+  AUTH_SCOPE_COOKIE_NAME,
+  AUTH_SCOPE_FULL_ACCESS,
+} from "@/lib/auth/constants";
+import { decodeScopeCookie, isWarehouseAllowed } from "@/lib/auth/scopes";
 
 const PUBLIC_PATHS = new Set(["/login", "/api/auth/login"]);
 
@@ -16,6 +18,19 @@ function isPublicAsset(pathname: string): boolean {
   return false;
 }
 
+function getRequestedWarehouse(request: NextRequest): string | null {
+  const queryWarehouse =
+    request.nextUrl.searchParams.get("warehouse") ??
+    request.nextUrl.searchParams.get("warehouseCode") ??
+    request.nextUrl.searchParams.get("warehouse_code");
+
+  if (!queryWarehouse) {
+    return null;
+  }
+
+  return queryWarehouse.trim().toUpperCase();
+}
+
 export function proxy(request: NextRequest) {
   const { pathname, search, searchParams } = request.nextUrl;
 
@@ -23,15 +38,35 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const authScope = parseAccessScope(request.cookies.get(AUTH_COOKIE_NAME)?.value);
-  if (!authScope) {
-    if (pathname.startsWith("/api/")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const isAuthed = request.cookies.get(AUTH_COOKIE_NAME)?.value === AUTH_COOKIE_VALUE;
+  if (isAuthed) {
+    const allowedWarehouses = decodeScopeCookie(request.cookies.get(AUTH_SCOPE_COOKIE_NAME)?.value);
+
+    if (allowedWarehouses !== AUTH_SCOPE_FULL_ACCESS) {
+      const requestedWarehouse = getRequestedWarehouse(request);
+      if (requestedWarehouse) {
+        const fallbackWarehouse = allowedWarehouses[0];
+        const needsRewrite =
+          requestedWarehouse === "ALL" ||
+          !isWarehouseAllowed(requestedWarehouse, allowedWarehouses);
+
+        if (needsRewrite && fallbackWarehouse) {
+          const rewritten = request.nextUrl.clone();
+          if (rewritten.searchParams.has("warehouse")) {
+            rewritten.searchParams.set("warehouse", fallbackWarehouse);
+          }
+          if (rewritten.searchParams.has("warehouseCode")) {
+            rewritten.searchParams.set("warehouseCode", fallbackWarehouse);
+          }
+          if (rewritten.searchParams.has("warehouse_code")) {
+            rewritten.searchParams.set("warehouse_code", fallbackWarehouse);
+          }
+          return NextResponse.rewrite(rewritten);
+        }
+      }
     }
 
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("next", `${pathname}${search}`);
-    return NextResponse.redirect(loginUrl);
+    return NextResponse.next();
   }
 
   if (
