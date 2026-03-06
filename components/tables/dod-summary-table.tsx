@@ -23,10 +23,10 @@ export function DodSummaryTable({ rows }: Props) {
           <thead>
             <tr>
               <th>Day</th>
-              <th>Total Placed</th>
-              <th>Delivered (Order Date)</th>
-              <th>Delivered (Delivery Date)</th>
-              <th>On-Time %</th>
+              <th className="metric-cell">Total Placed</th>
+              <th className="metric-cell">Delivered (%)</th>
+              <th className="metric-cell">Delivered (Overall)</th>
+              <th className="metric-cell">On-Time %</th>
             </tr>
           </thead>
           <tbody>
@@ -40,10 +40,10 @@ export function DodSummaryTable({ rows }: Props) {
               rows.map((row) => (
                 <tr key={row.day}>
                   <td>{formatDateMmmDd(row.day)}</td>
-                  <td>{row.total_placed}</td>
-                  <td>{row.total_delivered}</td>
-                  <td>{row.total_delivered_delivery_date}</td>
-                  <td>{row.otd_pct === null ? "-" : `${(row.otd_pct * 100).toFixed(2)}%`}</td>
+                  <td className="metric-cell">{row.total_placed}</td>
+                  <td className="metric-cell">{row.total_delivered}</td>
+                  <td className="metric-cell">{row.total_delivered_delivery_date}</td>
+                  <td className="metric-cell">{row.otd_pct === null ? "-" : `${(row.otd_pct * 100).toFixed(2)}%`}</td>
                 </tr>
               ))
             )}

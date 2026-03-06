@@ -160,14 +160,14 @@ export function WowMomTable({ warehouse, from, to, initialData }: WowMomTablePro
             <thead>
               <tr>
                 <th>{viewType === "week" ? "Week" : "Month"}</th>
-                <th>Total Placed</th>
-                <th>Delivered (Order Date)</th>
-                <th>Delivered (Delivery Date)</th>
-                <th>On-Time</th>
-                <th>Late</th>
-                <th>OTD %</th>
-                <th>Avg Time</th>
-                <th>Change</th>
+                <th className="metric-cell">Total Placed</th>
+                <th className="metric-cell">Delivered (%)</th>
+                <th className="metric-cell">Delivered (Overall)</th>
+                <th className="metric-cell">On-Time</th>
+                <th className="metric-cell">Late</th>
+                <th className="metric-cell">OTD %</th>
+                <th className="metric-cell">Avg Time</th>
+                <th className="metric-cell">Change</th>
               </tr>
             </thead>
             <tbody>
@@ -196,16 +196,16 @@ export function WowMomTable({ warehouse, from, to, initialData }: WowMomTablePro
                             </button>
                             <div className="warehouse-group-inline-note">Selected Range Total</div>
                           </td>
-                          <td>{formatCount(collapsedSummary.total_placed)}</td>
-                          <td>{formatCount(collapsedSummary.total_delivered)}</td>
-                          <td>{formatCount(collapsedSummary.total_delivered_delivery_date)}</td>
-                          <td className="on-time">{formatCount(collapsedSummary.on_time)}</td>
-                          <td className="late">{formatCount(collapsedSummary.late)}</td>
-                          <td className={getOtdClass(collapsedSummary.otd_pct)}>
+                          <td className="metric-cell">{formatCount(collapsedSummary.total_placed)}</td>
+                          <td className="metric-cell">{formatCount(collapsedSummary.total_delivered)}</td>
+                          <td className="metric-cell">{formatCount(collapsedSummary.total_delivered_delivery_date)}</td>
+                          <td className="on-time metric-cell">{formatCount(collapsedSummary.on_time)}</td>
+                          <td className="late metric-cell">{formatCount(collapsedSummary.late)}</td>
+                          <td className={`metric-cell ${getOtdClass(collapsedSummary.otd_pct)}`.trim()}>
                             {formatPercent(collapsedSummary.otd_pct)}
                           </td>
-                          <td>{formatTime(collapsedSummary.avg_delivery_minutes)}</td>
-                          <td>-</td>
+                          <td className="metric-cell">{formatTime(collapsedSummary.avg_delivery_minutes)}</td>
+                          <td className="metric-cell">-</td>
                         </tr>
 
                         {!isCollapsed &&
@@ -214,16 +214,16 @@ export function WowMomTable({ warehouse, from, to, initialData }: WowMomTablePro
                               <td className="period-label">
                                 {getPeriodLabel(period, viewType)}
                               </td>
-                              <td>{period.total_placed}</td>
-                              <td>{period.total_delivered}</td>
-                              <td>{period.total_delivered_delivery_date}</td>
-                              <td className="on-time">{period.on_time}</td>
-                              <td className="late">{period.late}</td>
-                              <td className={getOtdClass(period.otd_pct)}>
+                              <td className="metric-cell">{period.total_placed}</td>
+                              <td className="metric-cell">{period.total_delivered}</td>
+                              <td className="metric-cell">{period.total_delivered_delivery_date}</td>
+                              <td className="on-time metric-cell">{period.on_time}</td>
+                              <td className="late metric-cell">{period.late}</td>
+                              <td className={`metric-cell ${getOtdClass(period.otd_pct)}`.trim()}>
                                 {period.otd_pct === null ? "-" : `${period.otd_pct.toFixed(1)}%`}
                               </td>
-                              <td>{formatTime(period.avg_delivery_minutes)}</td>
-                              <td className={getChangeClass(period.changes)}>
+                              <td className="metric-cell">{formatTime(period.avg_delivery_minutes)}</td>
+                              <td className={`metric-cell ${getChangeClass(period.changes)}`.trim()}>
                                 {period.changes ? (
                                   <span className="otd-change">
                                     {period.changes.otd_pct.direction === "up" ? "↑" : "↓"}
@@ -243,16 +243,16 @@ export function WowMomTable({ warehouse, from, to, initialData }: WowMomTablePro
                       <td className="period-label">
                         {getPeriodLabel(period, viewType)}
                       </td>
-                      <td>{period.total_placed}</td>
-                      <td>{period.total_delivered}</td>
-                      <td>{period.total_delivered_delivery_date}</td>
-                      <td className="on-time">{period.on_time}</td>
-                      <td className="late">{period.late}</td>
-                      <td className={getOtdClass(period.otd_pct)}>
+                      <td className="metric-cell">{period.total_placed}</td>
+                      <td className="metric-cell">{period.total_delivered}</td>
+                      <td className="metric-cell">{period.total_delivered_delivery_date}</td>
+                      <td className="on-time metric-cell">{period.on_time}</td>
+                      <td className="late metric-cell">{period.late}</td>
+                      <td className={`metric-cell ${getOtdClass(period.otd_pct)}`.trim()}>
                         {period.otd_pct === null ? "-" : `${period.otd_pct.toFixed(1)}%`}
                       </td>
-                      <td>{formatTime(period.avg_delivery_minutes)}</td>
-                      <td className={getChangeClass(period.changes)}>
+                      <td className="metric-cell">{formatTime(period.avg_delivery_minutes)}</td>
+                      <td className={`metric-cell ${getChangeClass(period.changes)}`.trim()}>
                         {period.changes ? (
                           <span className="otd-change">
                             {period.changes.otd_pct.direction === "up" ? "↑" : "↓"}

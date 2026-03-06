@@ -663,6 +663,10 @@ td {
   text-align: left;
 }
 
+.metric-cell {
+  text-align: center;
+}
+
 thead th {
   background: #f1f5f9;
   position: sticky;

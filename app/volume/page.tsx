@@ -119,7 +119,7 @@ export default function VolumePage() {
                   <tr>
                     <th>Day</th>
                     {Array.from({ length: 24 }).map((_, hour) => (
-                      <th key={hour}>{hour}</th>
+                      <th key={hour} className="metric-cell">{hour}</th>
                     ))}
                   </tr>
                 </thead>
@@ -132,7 +132,11 @@ export default function VolumePage() {
                         const value = cell?.value ?? 0;
                         const alpha = Math.max(0.08, value / maxValue);
                         return (
-                          <td key={`${day}-${hour}`} style={{ backgroundColor: `rgba(37,99,235,${alpha})`, color: alpha > 0.5 ? "#fff" : "inherit" }}>
+                          <td
+                            key={`${day}-${hour}`}
+                            className="metric-cell"
+                            style={{ backgroundColor: `rgba(220,38,38,${alpha})`, color: alpha > 0.5 ? "#fff" : "inherit" }}
+                          >
                             {value}
                           </td>
                         );
@@ -151,13 +155,13 @@ export default function VolumePage() {
         <p className="muted">{modelNotes}</p>
         <div className="table-scroll">
           <table className="data-table">
-            <thead><tr><th>Date</th><th>Historical</th><th>Forecast</th></tr></thead>
+            <thead><tr><th>Date</th><th className="metric-cell">Historical</th><th className="metric-cell">Forecast</th></tr></thead>
             <tbody>
               {historical.slice(-7).map((point) => (
-                <tr key={`h-${point.day}`}><td>{point.day}</td><td>{point.value}</td><td>-</td></tr>
+                <tr key={`h-${point.day}`}><td>{point.day}</td><td className="metric-cell">{point.value}</td><td className="metric-cell">-</td></tr>
               ))}
               {forecast.map((point) => (
-                <tr key={`f-${point.day}`}><td>{point.day}</td><td>-</td><td>{point.value}</td></tr>
+                <tr key={`f-${point.day}`}><td>{point.day}</td><td className="metric-cell">-</td><td className="metric-cell">{point.value}</td></tr>
               ))}
             </tbody>
           </table>

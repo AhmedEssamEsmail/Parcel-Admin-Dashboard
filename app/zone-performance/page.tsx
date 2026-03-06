@@ -116,11 +116,11 @@ export default function ZonePerformancePage() {
                 <thead>
                   <tr>
                     <th>City</th>
-                    <th>Orders</th>
-                    <th>Delivered (Order Date)</th>
-                    <th>Delivered (Delivery Date)</th>
-                    <th>On-Time %</th>
-                    <th>Avg Time</th>
+                    <th className="metric-cell">Orders</th>
+                    <th className="metric-cell">Delivered (%)</th>
+                    <th className="metric-cell">Delivered (Overall)</th>
+                    <th className="metric-cell">On-Time %</th>
+                    <th className="metric-cell">Avg Time</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -138,11 +138,11 @@ export default function ZonePerformancePage() {
                         {index === 2 && "#3 "}
                         {city.city}
                       </td>
-                      <td>{city.total_orders}</td>
-                      <td>{city.delivered_count}</td>
-                      <td>{city.delivered_count_delivery_date}</td>
-                      <td>{city.otd_pct?.toFixed(1) ?? "-"}%</td>
-                      <td>{formatTime(city.avg_delivery_minutes)}</td>
+                      <td className="metric-cell">{city.total_orders}</td>
+                      <td className="metric-cell">{city.delivered_count}</td>
+                      <td className="metric-cell">{city.delivered_count_delivery_date}</td>
+                      <td className="metric-cell">{city.otd_pct?.toFixed(1) ?? "-"}%</td>
+                      <td className="metric-cell">{formatTime(city.avg_delivery_minutes)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -157,11 +157,11 @@ export default function ZonePerformancePage() {
                 <thead>
                   <tr>
                     <th>City</th>
-                    <th>Orders</th>
-                    <th>Delivered (Order Date)</th>
-                    <th>Delivered (Delivery Date)</th>
-                    <th>On-Time %</th>
-                    <th>Avg Time</th>
+                    <th className="metric-cell">Orders</th>
+                    <th className="metric-cell">Delivered (%)</th>
+                    <th className="metric-cell">Delivered (Overall)</th>
+                    <th className="metric-cell">On-Time %</th>
+                    <th className="metric-cell">Avg Time</th>
                     <th>Status</th>
                   </tr>
                 </thead>
@@ -175,11 +175,11 @@ export default function ZonePerformancePage() {
                       }}
                     >
                       <td>{city.city}</td>
-                      <td>{city.total_orders}</td>
-                      <td>{city.delivered_count}</td>
-                      <td>{city.delivered_count_delivery_date}</td>
-                      <td className="low">{city.otd_pct?.toFixed(1) ?? "-"}%</td>
-                      <td>{formatTime(city.avg_delivery_minutes)}</td>
+                      <td className="metric-cell">{city.total_orders}</td>
+                      <td className="metric-cell">{city.delivered_count}</td>
+                      <td className="metric-cell">{city.delivered_count_delivery_date}</td>
+                      <td className="low metric-cell">{city.otd_pct?.toFixed(1) ?? "-"}%</td>
+                      <td className="metric-cell">{formatTime(city.avg_delivery_minutes)}</td>
                       <td>
                         {city.volume_status === "LOW_VOLUME" && (
                           <span className="badge info">Low Volume</span>
@@ -220,11 +220,11 @@ export default function ZonePerformancePage() {
                   <thead>
                     <tr>
                       <th>Area</th>
-                      <th>Orders</th>
-                      <th>Delivered (Order Date)</th>
-                      <th>Delivered (Delivery Date)</th>
-                      <th>On-Time %</th>
-                      <th>Avg Time</th>
+                      <th className="metric-cell">Orders</th>
+                      <th className="metric-cell">Delivered (%)</th>
+                      <th className="metric-cell">Delivered (Overall)</th>
+                      <th className="metric-cell">On-Time %</th>
+                      <th className="metric-cell">Avg Time</th>
                       <th>Status</th>
                     </tr>
                   </thead>
@@ -232,11 +232,11 @@ export default function ZonePerformancePage() {
                     {drilldown.areas.map((row) => (
                       <tr key={row.city}>
                         <td>{row.city}</td>
-                        <td>{row.total_orders}</td>
-                        <td>{row.delivered_count}</td>
-                        <td>{row.delivered_count_delivery_date}</td>
-                        <td>{row.otd_pct?.toFixed(1) ?? "-"}%</td>
-                        <td>{formatTime(row.avg_delivery_minutes)}</td>
+                        <td className="metric-cell">{row.total_orders}</td>
+                        <td className="metric-cell">{row.delivered_count}</td>
+                        <td className="metric-cell">{row.delivered_count_delivery_date}</td>
+                        <td className="metric-cell">{row.otd_pct?.toFixed(1) ?? "-"}%</td>
+                        <td className="metric-cell">{formatTime(row.avg_delivery_minutes)}</td>
                         <td>
                           {row.volume_status === "LOW_VOLUME" && (
                             <span className="badge info">Low Volume</span>
@@ -256,11 +256,11 @@ export default function ZonePerformancePage() {
                   <thead>
                     <tr>
                       <th>City</th>
-                      <th>Orders</th>
-                      <th>Delivered (Order Date)</th>
-                      <th>Delivered (Delivery Date)</th>
-                      <th>On-Time %</th>
-                      <th>Avg Time</th>
+                      <th className="metric-cell">Orders</th>
+                      <th className="metric-cell">Delivered (%)</th>
+                      <th className="metric-cell">Delivered (Overall)</th>
+                      <th className="metric-cell">On-Time %</th>
+                      <th className="metric-cell">Avg Time</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -273,11 +273,11 @@ export default function ZonePerformancePage() {
                         }}
                       >
                         <td>{city.city}</td>
-                        <td>{city.total_orders}</td>
-                        <td>{city.delivered_count}</td>
-                        <td>{city.delivered_count_delivery_date}</td>
-                        <td>{city.otd_pct?.toFixed(1) ?? "-"}%</td>
-                        <td>{formatTime(city.avg_delivery_minutes)}</td>
+                        <td className="metric-cell">{city.total_orders}</td>
+                        <td className="metric-cell">{city.delivered_count}</td>
+                        <td className="metric-cell">{city.delivered_count_delivery_date}</td>
+                        <td className="metric-cell">{city.otd_pct?.toFixed(1) ?? "-"}%</td>
+                        <td className="metric-cell">{formatTime(city.avg_delivery_minutes)}</td>
                       </tr>
                     ))}
                   </tbody>
