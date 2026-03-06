@@ -11,6 +11,7 @@ type CityRow = {
   city: string;
   total_orders: number;
   delivered_count: number;
+  delivered_count_delivery_date: number;
   otd_pct: number | null;
   avg_delivery_minutes: number | null;
   volume_status: string;
@@ -22,6 +23,7 @@ type CityDetailRow = {
   area: string | null;
   total_orders: number;
   delivered_count: number;
+  delivered_count_delivery_date: number;
   on_time_count: number;
   otd_pct: number | null;
   avg_delivery_minutes: number | null;
@@ -115,7 +117,8 @@ export default function ZonePerformancePage() {
                   <tr>
                     <th>City</th>
                     <th>Orders</th>
-                    <th>Delivered</th>
+                    <th>Delivered (Order Date)</th>
+                    <th>Delivered (Delivery Date)</th>
                     <th>On-Time %</th>
                     <th>Avg Time</th>
                   </tr>
@@ -137,6 +140,7 @@ export default function ZonePerformancePage() {
                       </td>
                       <td>{city.total_orders}</td>
                       <td>{city.delivered_count}</td>
+                      <td>{city.delivered_count_delivery_date}</td>
                       <td>{city.otd_pct?.toFixed(1) ?? "-"}%</td>
                       <td>{formatTime(city.avg_delivery_minutes)}</td>
                     </tr>
@@ -154,7 +158,8 @@ export default function ZonePerformancePage() {
                   <tr>
                     <th>City</th>
                     <th>Orders</th>
-                    <th>Delivered</th>
+                    <th>Delivered (Order Date)</th>
+                    <th>Delivered (Delivery Date)</th>
                     <th>On-Time %</th>
                     <th>Avg Time</th>
                     <th>Status</th>
@@ -172,6 +177,7 @@ export default function ZonePerformancePage() {
                       <td>{city.city}</td>
                       <td>{city.total_orders}</td>
                       <td>{city.delivered_count}</td>
+                      <td>{city.delivered_count_delivery_date}</td>
                       <td className="low">{city.otd_pct?.toFixed(1) ?? "-"}%</td>
                       <td>{formatTime(city.avg_delivery_minutes)}</td>
                       <td>
@@ -215,7 +221,8 @@ export default function ZonePerformancePage() {
                     <tr>
                       <th>Area</th>
                       <th>Orders</th>
-                      <th>Delivered</th>
+                      <th>Delivered (Order Date)</th>
+                      <th>Delivered (Delivery Date)</th>
                       <th>On-Time %</th>
                       <th>Avg Time</th>
                       <th>Status</th>
@@ -227,6 +234,7 @@ export default function ZonePerformancePage() {
                         <td>{row.city}</td>
                         <td>{row.total_orders}</td>
                         <td>{row.delivered_count}</td>
+                        <td>{row.delivered_count_delivery_date}</td>
                         <td>{row.otd_pct?.toFixed(1) ?? "-"}%</td>
                         <td>{formatTime(row.avg_delivery_minutes)}</td>
                         <td>
@@ -249,7 +257,8 @@ export default function ZonePerformancePage() {
                     <tr>
                       <th>City</th>
                       <th>Orders</th>
-                      <th>Delivered</th>
+                      <th>Delivered (Order Date)</th>
+                      <th>Delivered (Delivery Date)</th>
                       <th>On-Time %</th>
                       <th>Avg Time</th>
                     </tr>
@@ -266,6 +275,7 @@ export default function ZonePerformancePage() {
                         <td>{city.city}</td>
                         <td>{city.total_orders}</td>
                         <td>{city.delivered_count}</td>
+                        <td>{city.delivered_count_delivery_date}</td>
                         <td>{city.otd_pct?.toFixed(1) ?? "-"}%</td>
                         <td>{formatTime(city.avg_delivery_minutes)}</td>
                       </tr>
@@ -291,6 +301,7 @@ type AggregateRow = {
   city: string;
   total_orders: number;
   delivered_count: number;
+  delivered_count_delivery_date: number;
   on_time_count: number;
   otd_pct: number | null;
   avg_delivery_minutes: number | null;
@@ -307,6 +318,7 @@ function aggregateRows(
       city: string;
       total_orders: number;
       delivered_count: number;
+      delivered_count_delivery_date: number;
       on_time_count: number;
       total_minutes: number;
       total_delivered: number;
@@ -319,6 +331,7 @@ function aggregateRows(
       city: key,
       total_orders: 0,
       delivered_count: 0,
+      delivered_count_delivery_date: 0,
       on_time_count: 0,
       total_minutes: 0,
       total_delivered: 0,
@@ -326,6 +339,7 @@ function aggregateRows(
 
     existing.total_orders += row.total_orders;
     existing.delivered_count += row.delivered_count;
+    existing.delivered_count_delivery_date += row.delivered_count_delivery_date;
     existing.on_time_count += row.on_time_count ?? 0;
     if (row.avg_delivery_minutes !== null && row.avg_delivery_minutes !== undefined) {
       existing.total_minutes += row.avg_delivery_minutes * row.delivered_count;
@@ -340,6 +354,7 @@ function aggregateRows(
       city: entry.city,
       total_orders: entry.total_orders,
       delivered_count: entry.delivered_count,
+      delivered_count_delivery_date: entry.delivered_count_delivery_date,
       on_time_count: entry.on_time_count,
       otd_pct:
         entry.delivered_count > 0

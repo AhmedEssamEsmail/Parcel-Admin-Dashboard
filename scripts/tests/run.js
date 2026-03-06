@@ -6,10 +6,14 @@ const test = require("node:test");
 const vm = require("node:vm");
 const ts = require("typescript");
 
-test("compare-periods route selects order_ts_utc", () => {
+test("compare-periods route selects split delivered metric fields", () => {
   const source = readSource("app/api/compare-periods/route.ts");
-  assert.match(source, /\.select\("parcel_id, is_on_time, delivered_ts, order_ts_utc, waiting_address"\)/);
-  assert.ok(!source.includes("delivered_ts, order_ts, waiting_address"));
+  assert.match(
+    source,
+    /\.select\(\s*"created_date_local, parcel_id, is_on_time, delivered_ts, delivery_date_local, is_countable_order, is_delivered_status, order_ts_utc, waiting_address"/,
+  );
+  assert.match(source, /total_delivered_delivery_date/);
+  assert.match(source, /\.or\(/);
 });
 
 test("getDeliveryMinutes guards invalid/negative durations", () => {
@@ -79,6 +83,26 @@ test("new operations routes and nav links exist", () => {
   assert.match(navSource, /"\/exceptions"/);
   assert.match(navSource, /"\/promise-reliability"/);
   assert.match(navSource, /"\/route-efficiency"/);
+});
+
+test("dashboard and tables expose both delivered concepts", () => {
+  const dodTable = readSource("components/tables/dod-summary-table.tsx");
+  const wowMomTable = readSource("components/tables/wow-mom-table.tsx");
+  const comparisonWidget = readSource("components/widgets/comparison-widget.tsx");
+  const routeEfficiencyTable = readSource("components/tables/route-efficiency-table.tsx");
+
+  assert.match(dodTable, /Delivered \(Order Date\)/);
+  assert.match(dodTable, /Delivered \(Delivery Date\)/);
+  assert.match(wowMomTable, /Delivered \(Order Date\)/);
+  assert.match(wowMomTable, /Delivered \(Delivery Date\)/);
+  assert.match(comparisonWidget, /Delivered \(Order Date\)/);
+  assert.match(comparisonWidget, /Delivered \(Delivery Date\)/);
+  assert.match(routeEfficiencyTable, /Delivered \(Delivery Date\)/);
+});
+
+test("dashboard combo chart keeps total orders label", () => {
+  const source = readSource("components/charts/on-time-combo.tsx");
+  assert.match(source, /label: "Total Orders"/);
 });
 
 function readSource(relativePath) {

@@ -4,6 +4,7 @@ type DodRow = {
   day: string;
   total_placed: number;
   total_delivered: number;
+  total_delivered_delivery_date: number;
   on_time: number;
   late: number;
   otd_pct: number | null;
@@ -23,14 +24,15 @@ export function DodSummaryTable({ rows }: Props) {
             <tr>
               <th>Day</th>
               <th>Total Placed</th>
-              <th>Total Delivered</th>
+              <th>Delivered (Order Date)</th>
+              <th>Delivered (Delivery Date)</th>
               <th>On-Time %</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={4} className="empty-cell">
+                <td colSpan={5} className="empty-cell">
                   No rows in selected range.
                 </td>
               </tr>
@@ -40,6 +42,7 @@ export function DodSummaryTable({ rows }: Props) {
                   <td>{formatDateMmmDd(row.day)}</td>
                   <td>{row.total_placed}</td>
                   <td>{row.total_delivered}</td>
+                  <td>{row.total_delivered_delivery_date}</td>
                   <td>{row.otd_pct === null ? "-" : `${(row.otd_pct * 100).toFixed(2)}%`}</td>
                 </tr>
               ))

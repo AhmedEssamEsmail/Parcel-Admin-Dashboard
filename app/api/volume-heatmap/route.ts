@@ -20,9 +20,10 @@ export const GET = withRateLimit(async (request: NextRequest) => {
   const supabase = getSupabaseAdminClient();
   let query = supabase
     .from("v_parcel_kpi")
-    .select("warehouse_code,created_date_local,order_local,waiting_address")
+    .select("warehouse_code,created_date_local,order_local,waiting_address,is_countable_order")
     .gte("created_date_local", from)
     .lte("created_date_local", to)
+    .eq("is_countable_order", true)
     .limit(20000);
 
   if (warehouse && warehouse !== "ALL") query = query.eq("warehouse_code", warehouse);

@@ -6,7 +6,7 @@ const test = require("node:test");
 const vm = require("node:vm");
 const ts = require("typescript");
 
-test("fetchPeriodData handles order_ts_utc and invalid timestamps with mocked Supabase", async () => {
+test("fetchPeriodData handles split delivered metrics and invalid timestamps with mocked Supabase", async () => {
   const { fetchPeriodData } = loadTsModule("app/api/compare-periods/route.ts", [
     {
       from: 'import { NextRequest, NextResponse } from "next/server.js";',
@@ -24,30 +24,68 @@ test("fetchPeriodData handles order_ts_utc and invalid timestamps with mocked Su
 
   const rows = [
     {
+      created_date_local: "2026-03-01",
       parcel_id: 1,
       is_on_time: true,
       delivered_ts: "2026-03-01T12:00:00.000Z",
+      delivery_date_local: "2026-03-01",
+      is_countable_order: true,
+      is_delivered_status: true,
       order_ts_utc: "2026-03-01T10:00:00.000Z",
       waiting_address: false,
     },
     {
+      created_date_local: "2026-03-01",
       parcel_id: 2,
       is_on_time: false,
       delivered_ts: "2026-03-01T13:00:00.000Z",
+      delivery_date_local: "2026-03-02",
+      is_countable_order: true,
+      is_delivered_status: true,
       order_ts_utc: "invalid",
       waiting_address: true,
     },
     {
+      created_date_local: "2026-03-01",
       parcel_id: 3,
       is_on_time: null,
+      delivery_date_local: null,
       delivered_ts: null,
+      is_countable_order: true,
+      is_delivered_status: false,
       order_ts_utc: "2026-03-01T10:00:00.000Z",
       waiting_address: false,
     },
     {
+      created_date_local: "2026-03-01",
       parcel_id: 4,
       is_on_time: false,
       delivered_ts: "2026-03-01T09:59:00.000Z",
+      delivery_date_local: "2026-03-01",
+      is_countable_order: true,
+      is_delivered_status: true,
+      order_ts_utc: "2026-03-01T10:00:00.000Z",
+      waiting_address: false,
+    },
+    {
+      created_date_local: "2026-02-28",
+      parcel_id: 5,
+      is_on_time: true,
+      delivered_ts: "2026-03-01T08:00:00.000Z",
+      delivery_date_local: "2026-03-01",
+      is_countable_order: true,
+      is_delivered_status: true,
+      order_ts_utc: "2026-02-28T09:00:00.000Z",
+      waiting_address: false,
+    },
+    {
+      created_date_local: "2026-03-01",
+      parcel_id: 6,
+      is_on_time: false,
+      delivered_ts: null,
+      delivery_date_local: null,
+      is_countable_order: false,
+      is_delivered_status: false,
       order_ts_utc: "2026-03-01T10:00:00.000Z",
       waiting_address: false,
     },
@@ -59,11 +97,12 @@ test("fetchPeriodData handles order_ts_utc and invalid timestamps with mocked Su
   assert.equal(mock.selectedTable, "v_parcel_kpi");
   assert.equal(
     mock.selectedColumns,
-    "parcel_id, is_on_time, delivered_ts, order_ts_utc, waiting_address",
+    "created_date_local, parcel_id, is_on_time, delivered_ts, delivery_date_local, is_countable_order, is_delivered_status, order_ts_utc, waiting_address",
   );
   assert.deepEqual(JSON.parse(JSON.stringify(result)), {
     total_placed: 4,
     total_delivered: 3,
+    total_delivered_delivery_date: 3,
     on_time: 1,
     late: 2,
     otd_pct: 33.33,
@@ -188,10 +227,7 @@ function makeSupabaseSelectMock(rows) {
     eq() {
       return this;
     },
-    gte() {
-      return this;
-    },
-    lte() {
+    or() {
       return Promise.resolve({ data: rows, error: null });
     },
   };

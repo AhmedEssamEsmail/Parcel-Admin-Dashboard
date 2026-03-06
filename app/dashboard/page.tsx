@@ -15,6 +15,7 @@ type DodRow = {
   day: string;
   total_placed: number;
   total_delivered: number;
+  total_delivered_delivery_date: number;
   on_time: number;
   late: number;
   otd_pct: number | null;

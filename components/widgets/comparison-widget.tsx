@@ -12,6 +12,7 @@ type PeriodStats = {
   end: string;
   total_placed: number;
   total_delivered: number;
+  total_delivered_delivery_date: number;
   otd_pct: number | null;
   avg_delivery_minutes: number | null;
 };
@@ -27,6 +28,7 @@ type CompareResponse = {
   comparison: {
     total_placed: PeriodDelta;
     total_delivered: PeriodDelta;
+    total_delivered_delivery_date: PeriodDelta;
     otd_pct: { absolute: number; improved: boolean };
     avg_delivery_minutes: { absolute: number; improved: boolean };
   };
@@ -111,7 +113,8 @@ export function ComparisonWidget({ warehouse }: Props) {
                 {formatDateMmmDd(data.period_a.start)} to {formatDateMmmDd(data.period_a.end)}
               </p>
               <p>Placed: {data.period_a.total_placed}</p>
-              <p>Delivered: {data.period_a.total_delivered}</p>
+              <p>Delivered (Order Date): {data.period_a.total_delivered}</p>
+              <p>Delivered (Delivery Date): {data.period_a.total_delivered_delivery_date}</p>
               <p>OTD%: {data.period_a.otd_pct?.toFixed(1) ?? "-"}%</p>
               <p>Avg Time: {formatTime(data.period_a.avg_delivery_minutes)}</p>
             </div>
@@ -121,7 +124,8 @@ export function ComparisonWidget({ warehouse }: Props) {
                 {formatDateMmmDd(data.period_b.start)} to {formatDateMmmDd(data.period_b.end)}
               </p>
               <p>Placed: {data.period_b.total_placed}</p>
-              <p>Delivered: {data.period_b.total_delivered}</p>
+              <p>Delivered (Order Date): {data.period_b.total_delivered}</p>
+              <p>Delivered (Delivery Date): {data.period_b.total_delivered_delivery_date}</p>
               <p>OTD%: {data.period_b.otd_pct?.toFixed(1) ?? "-"}%</p>
               <p>Avg Time: {formatTime(data.period_b.avg_delivery_minutes)}</p>
             </div>
@@ -131,7 +135,10 @@ export function ComparisonWidget({ warehouse }: Props) {
                 Placed: {formatDiff(data.comparison.total_placed)}
               </p>
               <p>
-                Delivered: {formatDiff(data.comparison.total_delivered)}
+                Delivered (Order Date): {formatDiff(data.comparison.total_delivered)}
+              </p>
+              <p>
+                Delivered (Delivery Date): {formatDiff(data.comparison.total_delivered_delivery_date)}
               </p>
               <p className={data.comparison.otd_pct.improved ? "improved" : "declined"}>
                 OTD%: {formatDelta(data.comparison.otd_pct.absolute, "%")}

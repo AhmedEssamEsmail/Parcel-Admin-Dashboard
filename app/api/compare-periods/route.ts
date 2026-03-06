@@ -52,6 +52,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
 type PeriodStats = {
   total_placed: number;
   total_delivered: number;
+  total_delivered_delivery_date: number;
   on_time: number;
   late: number;
   otd_pct: number | null;
@@ -60,9 +61,13 @@ type PeriodStats = {
 };
 
 type ParcelKpiRow = {
+  created_date_local: string;
   parcel_id: string | number;
   is_on_time: boolean | null;
+  delivery_date_local: string | null;
   delivered_ts: string | null;
+  is_countable_order: boolean;
+  is_delivered_status: boolean;
   order_ts_utc: string | null;
   waiting_address: boolean | null;
 };
@@ -90,17 +95,30 @@ export async function fetchPeriodData(
 ): Promise<PeriodStats> {
   const { data, error } = await supabase
     .from("v_parcel_kpi")
-    .select("parcel_id, is_on_time, delivered_ts, order_ts_utc, waiting_address")
+    .select(
+      "created_date_local, parcel_id, is_on_time, delivered_ts, delivery_date_local, is_countable_order, is_delivered_status, order_ts_utc, waiting_address",
+    )
     .eq("warehouse_code", warehouse)
-    .gte("created_date_local", from)
-    .lte("created_date_local", to);
+    .or(
+      `and(created_date_local.gte.${from},created_date_local.lte.${to}),and(delivery_date_local.gte.${from},delivery_date_local.lte.${to})`,
+    );
 
   if (error) throw error;
 
-  const rows = (data ?? []) as ParcelKpiRow[];
-  const delivered = rows.filter((row) => row.delivered_ts !== null);
+  const rows = ((data ?? []) as ParcelKpiRow[]).filter((row) => row.is_countable_order);
+  const placedRows = rows.filter(
+    (row) => row.created_date_local >= from && row.created_date_local <= to,
+  );
+  const delivered = placedRows.filter((row) => row.is_delivered_status);
+  const deliveredByDeliveryDate = rows.filter(
+    (row) =>
+      row.is_delivered_status &&
+      row.delivery_date_local !== null &&
+      row.delivery_date_local >= from &&
+      row.delivery_date_local <= to,
+  );
   const onTime = delivered.filter((row) => row.is_on_time === true);
-  const waOrders = rows.filter((row) => row.waiting_address === true);
+  const waOrders = placedRows.filter((row) => row.waiting_address === true);
 
   const deliveryTimes = delivered
     .map((row) => getDeliveryMinutes(row))
@@ -112,8 +130,9 @@ export async function fetchPeriodData(
       : null;
 
   return {
-    total_placed: rows.length,
+    total_placed: placedRows.length,
     total_delivered: delivered.length,
+    total_delivered_delivery_date: deliveredByDeliveryDate.length,
     on_time: onTime.length,
     late: delivered.length - onTime.length,
     otd_pct:
@@ -139,6 +158,17 @@ function calculateComparison(periodA: PeriodStats, periodB: PeriodStats) {
       pct:
         periodA.total_delivered > 0
           ? Math.round(((periodB.total_delivered - periodA.total_delivered) / periodA.total_delivered) * 100)
+          : 0,
+    },
+    total_delivered_delivery_date: {
+      absolute: periodB.total_delivered_delivery_date - periodA.total_delivered_delivery_date,
+      pct:
+        periodA.total_delivered_delivery_date > 0
+          ? Math.round(
+              ((periodB.total_delivered_delivery_date - periodA.total_delivered_delivery_date) /
+                periodA.total_delivered_delivery_date) *
+                100,
+            )
           : 0,
     },
     otd_pct: {
