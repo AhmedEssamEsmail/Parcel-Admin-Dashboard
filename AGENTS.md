@@ -6,6 +6,7 @@ Follow this policy for all work in this repository.
 
 ### Plan Mode (design only)
 - Only analyze and design.
+- Ask questions if any part of the plan have multiple solutions or if you think that the request might have couple of different meanings.
 - Produce a clear, numbered implementation plan.
 - List exact files to modify.
 - Describe the intended change per file.

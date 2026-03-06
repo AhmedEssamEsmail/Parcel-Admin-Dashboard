@@ -11,6 +11,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
   const from = params.get("from")?.trim();
   const to = params.get("to")?.trim();
   const mode = params.get("mode")?.trim() === "avg" ? "avg" : "total";
+  const orderScope = params.get("orderScope")?.trim().toLowerCase() === "wa" ? "wa" : "normal";
 
   if (!from || !to) {
     return NextResponse.json({ error: "from and to are required" }, { status: 400 });
@@ -19,12 +20,13 @@ export const GET = withRateLimit(async (request: NextRequest) => {
   const supabase = getSupabaseAdminClient();
   let query = supabase
     .from("v_parcel_kpi")
-    .select("warehouse_code,created_date_local,order_local")
+    .select("warehouse_code,created_date_local,order_local,waiting_address")
     .gte("created_date_local", from)
     .lte("created_date_local", to)
     .limit(20000);
 
   if (warehouse && warehouse !== "ALL") query = query.eq("warehouse_code", warehouse);
+  query = orderScope === "wa" ? query.eq("waiting_address", true) : query.or("waiting_address.is.null,waiting_address.eq.false");
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -58,6 +60,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
 
   return NextResponse.json({
     mode,
+    order_scope: orderScope,
     from,
     to,
     day_count: dayCount,
