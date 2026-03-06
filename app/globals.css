@@ -785,27 +785,19 @@ thead th {
     grid-template-columns: 1fr;
   }
 
-  .data-table thead {
-    display: none;
+  .table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
-  .data-table tbody tr {
-    display: block;
-    margin-bottom: 16px;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    padding: 16px;
+  .data-table {
+    min-width: max-content;
+    font-size: 0.9rem;
   }
 
-  .data-table tbody td {
-    display: flex;
-    justify-content: space-between;
-    padding: 8px 0;
-    border-bottom: 1px solid #f3f4f6;
-  }
-
-  .data-table tbody td:last-child {
-    border-bottom: none;
+  .data-table th,
+  .data-table td {
+    padding: 8px 10px;
   }
 
   button,
