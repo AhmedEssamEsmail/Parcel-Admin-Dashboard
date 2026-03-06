@@ -14,6 +14,7 @@ type PeriodRow = {
   warehouse_code: string;
   total_placed: number;
   total_delivered: number;
+  total_delivered_delivery_date: number;
   on_time: number;
   late: number;
   otd_pct: number | null;
@@ -40,6 +41,7 @@ type WowMomResponse = {
 type CollapsedSummary = {
   total_placed: number | null;
   total_delivered: number | null;
+  total_delivered_delivery_date: number | null;
   on_time: number | null;
   late: number | null;
   otd_pct: number | null;
@@ -159,7 +161,8 @@ export function WowMomTable({ warehouse, from, to, initialData }: WowMomTablePro
               <tr>
                 <th>{viewType === "week" ? "Week" : "Month"}</th>
                 <th>Total Placed</th>
-                <th>Delivered</th>
+                <th>Delivered (Order Date)</th>
+                <th>Delivered (Delivery Date)</th>
                 <th>On-Time</th>
                 <th>Late</th>
                 <th>OTD %</th>
@@ -195,6 +198,7 @@ export function WowMomTable({ warehouse, from, to, initialData }: WowMomTablePro
                           </td>
                           <td>{formatCount(collapsedSummary.total_placed)}</td>
                           <td>{formatCount(collapsedSummary.total_delivered)}</td>
+                          <td>{formatCount(collapsedSummary.total_delivered_delivery_date)}</td>
                           <td className="on-time">{formatCount(collapsedSummary.on_time)}</td>
                           <td className="late">{formatCount(collapsedSummary.late)}</td>
                           <td className={getOtdClass(collapsedSummary.otd_pct)}>
@@ -212,6 +216,7 @@ export function WowMomTable({ warehouse, from, to, initialData }: WowMomTablePro
                               </td>
                               <td>{period.total_placed}</td>
                               <td>{period.total_delivered}</td>
+                              <td>{period.total_delivered_delivery_date}</td>
                               <td className="on-time">{period.on_time}</td>
                               <td className="late">{period.late}</td>
                               <td className={getOtdClass(period.otd_pct)}>
@@ -240,6 +245,7 @@ export function WowMomTable({ warehouse, from, to, initialData }: WowMomTablePro
                       </td>
                       <td>{period.total_placed}</td>
                       <td>{period.total_delivered}</td>
+                      <td>{period.total_delivered_delivery_date}</td>
                       <td className="on-time">{period.on_time}</td>
                       <td className="late">{period.late}</td>
                       <td className={getOtdClass(period.otd_pct)}>
@@ -335,6 +341,7 @@ function summarizePeriods(periods: PeriodRow[]): CollapsedSummary {
     return {
       total_placed: null,
       total_delivered: null,
+      total_delivered_delivery_date: null,
       on_time: null,
       late: null,
       otd_pct: null,
@@ -352,6 +359,10 @@ function summarizePeriods(periods: PeriodRow[]): CollapsedSummary {
   return {
     total_placed: periods.reduce((sum, period) => sum + period.total_placed, 0),
     total_delivered: periods.reduce((sum, period) => sum + period.total_delivered, 0),
+    total_delivered_delivery_date: periods.reduce(
+      (sum, period) => sum + period.total_delivered_delivery_date,
+      0,
+    ),
     on_time: periods.reduce((sum, period) => sum + period.on_time, 0),
     late: periods.reduce((sum, period) => sum + period.late, 0),
     otd_pct:

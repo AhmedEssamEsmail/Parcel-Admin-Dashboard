@@ -54,8 +54,11 @@ It combines:
 
 ## 3) Main Metrics & Logic
 
-- **OTD %** = `on_time / total_delivered * 100`
-- **Late** = `total_delivered - on_time`
+- **Total Orders / Total Placed** excludes parcels whose normalized status is one of: `Expired`, `Cancelled`, `System Cancelled`, `Pending Payment`
+- **Delivered (Order Date)** = delivered parcels from the orders placed in the selected day/week/month
+- **Delivered (Delivery Date)** = parcels delivered in the selected day/week/month regardless of when they were placed
+- **OTD %** = `on_time / delivered_order_date * 100`
+- **Late** = `delivered_order_date - on_time`
 - **WA Delivered %** = `wa_delivered_count / total_delivered_inc_wa * 100`
 - Raw stage SLA evaluations are computed via SQL views using warehouse/city timing rules + fallback logic.
 
@@ -155,21 +158,21 @@ delivery_exceptions --> v_exceptions_summary_daily / v_exception_aging
 | View | Built from | What it calculates |
 |---|---|---|
 | `v_parcel_status_min` | `parcel_logs` | First timestamp per parcel for each tracked stage: Collecting, Ready For Preparing, Prepare, Ready For Delivery, On The Way, Delivered. |
-| `v_parcel_base` | `delivery_details` + `warehouses` + `warehouse_city_sla_configs` + `wa_orders` + `v_parcel_status_min` | Normalized parcel record with local timestamps, warehouse metadata, waiting-address flag, and effective SLA minutes. |
-| `v_parcel_kpi` | `v_parcel_base` + `effective_shift_window()` | Cutoff status, promised deadline, and `is_on_time`. Main logic layer for parcel KPI calculations. |
+| `v_parcel_base` | `delivery_details` + `warehouses` + `warehouse_city_sla_configs` + `wa_orders` + `v_parcel_status_min` | Normalized parcel record with local timestamps, normalized order status, countable/delivered flags, local delivery date, warehouse metadata, waiting-address flag, and effective SLA minutes. |
+| `v_parcel_kpi` | `v_parcel_base` + `effective_shift_window()` | Cutoff status, promised deadline, `is_on_time`, and the KPI flags used by placed vs delivered-date reporting. Main logic layer for parcel KPI calculations. |
 | `v_parcel_phases` | `v_parcel_kpi` + `work_seconds_between()` | Raw and shift-adjusted seconds for each stage segment. |
-| `v_dod_summary` | `v_parcel_kpi` | Daily OTD summary including/excluding WA orders. |
+| `v_dod_summary` | `v_parcel_kpi` | Daily OTD summary including/excluding WA orders, with both delivered-by-order-date and delivered-by-delivery-date metrics. |
 | `v_raw_delivery_stages` | `v_parcel_kpi` + optional raw enrichment tables + delivery timing rules | Parcel-level operational stage table with SLA expectations, actual durations, statuses, and issue classification. |
 | `v_raw_delivery_stages_with_source` | `v_raw_delivery_stages` + `warehouse_delivery_timing_rules` | Adds whether timing came from `CITY_RULE` or `WAREHOUSE_FALLBACK`. |
-| `v_zone_performance` | `v_parcel_kpi` | Daily warehouse/zone/city/area performance. |
+| `v_zone_performance` | `v_parcel_kpi` | Daily warehouse/zone/city/area performance, including both delivered concepts. |
 | `v_avg_delivery_time` | `v_parcel_kpi` | Daily average, median, min, max delivery minutes. |
-| `v_wow_summary` | `v_parcel_kpi` | Weekly totals, delivery counts, OTD%, WA counts, and average delivery time. |
+| `v_wow_summary` | `v_parcel_kpi` | Weekly totals, delivered (order date), delivered (delivery date), OTD%, WA counts, and average delivery time. |
 | `v_mom_summary` | `v_parcel_kpi` | Monthly version of the same summary logic. |
 | `v_ingest_health_daily` | `ingest_runs` | Daily upload health and throughput by warehouse/dataset. |
 | `v_exceptions_summary_daily` | `delivery_exceptions` | Daily counts of total/open/resolved exceptions by severity. |
 | `v_exception_aging` | `delivery_exceptions` | Current aging in hours for each exception. |
 | `v_promise_reliability_daily` | `v_parcel_kpi` | Promise hit rate and average ETA error by warehouse/day/city. |
-| `v_route_efficiency_daily` | `v_parcel_kpi` | Orders per active area, delivery speed, and OTD by warehouse/day/city. |
+| `v_route_efficiency_daily` | `v_parcel_kpi` | Orders per active area, delivery speed, and OTD by warehouse/day/city, with both delivered counts exposed. |
 | `*_daily_rollup` views | Their per-warehouse source views | Add explicit `ALL` warehouse rows by aggregating all warehouses for each day. |
 
 ### 5.5 Key calculations explained
@@ -219,9 +222,10 @@ Adjusted stage durations use `work_seconds_between(...)`, which only counts time
 
 #### Day-over-day summary (`v_dod_summary`)
 Core daily formulas are:
-- `total_placed_inc_wa` = all distinct parcels created that day
-- `total_delivered_inc_wa` = distinct parcels with `delivered_ts`
-- `on_time_inc_wa` = distinct parcels where `is_on_time = true`
+- `total_placed_inc_wa` = all distinct countable parcels created that day
+- `total_delivered_inc_wa` = distinct countable parcels created that day with delivered status (**Delivered (Order Date)**)
+- `total_delivered_inc_wa_delivery_date` = distinct countable parcels whose `delivery_date_local` is that day (**Delivered (Delivery Date)**)
+- `on_time_inc_wa` = distinct countable parcels created that day where `is_on_time = true`
 - `otd_pct_inc_wa = on_time_inc_wa / total_delivered_inc_wa * 100`
 - `wa_count` = distinct parcels flagged as WA
 - `total_delivered_exc_wa` / `on_time_exc_wa` / `otd_pct_exc_wa` repeat the same logic after removing WA parcels
@@ -238,7 +242,7 @@ Important computed fields:
 - `ops_exceeded_30_mins`: for late non-WA parcels without tickets, classify as `Ops Issue` when `ops_time >= 31 minutes`; otherwise `Wait on Delivery Issue`
 
 #### Promise Reliability (`v_promise_reliability_daily`)
-- `delivered_with_promise` = delivered parcels with a non-null `deadline_local`
+- `delivered_with_promise` = delivered countable parcels from the placed-date cohort with a non-null `deadline_local`
 - `within_promise_window` = delivered parcels where `delivered_local <= deadline_local`
 - `promise_hit_rate = within_promise_window / delivered_with_promise * 100`
 - `avg_eta_error_minutes = avg(delivered_local - deadline_local)` in minutes
@@ -248,6 +252,7 @@ Important computed fields:
 - `parcels_per_active_area = total_orders / active_areas`
 - `avg_delivery_minutes = avg(delivered_ts - order_ts_utc)` in minutes
 - `otd_pct = on_time_count / delivered_count * 100`
+- `delivered_count` remains the **Delivered (Order Date)** metric; `delivered_count_delivery_date` is exposed separately for delivery-date reporting
 
 #### Ingest health (`v_ingest_health_daily`)
 Derived from `ingest_runs`:

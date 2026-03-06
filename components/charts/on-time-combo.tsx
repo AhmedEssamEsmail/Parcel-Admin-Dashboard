@@ -52,7 +52,7 @@ export function OnTimeComboChart({ labels, totals, onTimePct, waDeliveredPct }: 
       },
       {
         type: "line" as const,
-        label: "On Time %",
+        label: "On-Time %",
         data: onTimePct,
         borderColor: "#6b7280",
         pointBackgroundColor: "#6b7280",
@@ -117,7 +117,7 @@ export function OnTimeComboChart({ labels, totals, onTimePct, waDeliveredPct }: 
         max: 100,
         position: "right" as const,
         grid: { drawOnChartArea: false },
-        title: { display: true, text: "On Time %" },
+        title: { display: true, text: "On-Time %" },
       },
     },
   };

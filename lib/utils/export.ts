@@ -40,7 +40,9 @@ function buildHeader({ type, warehouse, from, to }: ExportOptions): string {
 # Date Range: ${dateRange}
 # Exported: ${new Date().toISOString()}
 #
-# OTD Calculation: (on_time_count / delivered_count) * 100
+# Delivered (Order Date): delivered among orders placed in the selected period
+# Delivered (Delivery Date): delivered in the selected period regardless of placed date
+# OTD Calculation: (on_time_count / delivered_count_order_date) * 100
 # Avg Time Calculation: AVG(delivered_ts - order_ts) in minutes
 #
 `;

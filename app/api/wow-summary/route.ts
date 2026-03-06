@@ -7,6 +7,7 @@ type PeriodRow = {
   warehouse_code: string;
   total_placed: number;
   total_delivered: number;
+  total_delivered_delivery_date: number;
   on_time: number;
   late: number | null;
   wa_count: number | null;
@@ -120,6 +121,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
       warehouse_code: row.warehouse_code,
       total_placed: Number(row.total_placed ?? 0),
       total_delivered: Number(row.total_delivered ?? 0),
+      total_delivered_delivery_date: Number(row.total_delivered_delivery_date ?? 0),
       on_time: Number(row.on_time ?? 0),
       late: Number(row.late ?? 0),
       wa_count: Number(row.wa_count ?? 0),

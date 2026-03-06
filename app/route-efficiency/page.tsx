@@ -16,6 +16,7 @@ type DetailedRow = {
   city: string;
   total_orders: number;
   delivered_count: number;
+  delivered_count_delivery_date: number;
   on_time_count: number;
   active_areas: number;
   parcels_per_active_area: number | null;
@@ -28,6 +29,7 @@ type DailyRow = {
   day: string;
   total_orders: number;
   delivered_count: number;
+  delivered_count_delivery_date: number;
   on_time_count: number;
   active_areas: number;
   parcels_per_active_area: number | null;

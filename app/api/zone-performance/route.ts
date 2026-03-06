@@ -12,6 +12,7 @@ type CityPerformanceRow = {
   day: string;
   total_orders: number;
   delivered_count: number;
+  delivered_count_delivery_date: number;
   on_time_count: number;
   otd_pct: number | null;
   avg_delivery_minutes: number | null;
@@ -22,6 +23,7 @@ type CityAggregate = {
   city: string;
   total_orders: number;
   delivered_count: number;
+  delivered_count_delivery_date: number;
   on_time_count: number;
   late_count: number;
   otd_pct: number | null;
@@ -132,6 +134,7 @@ function aggregateByCity(rows: CityPerformanceRow[]): CityAggregate[] {
       city: string;
       total_orders: number;
       delivered_count: number;
+      delivered_count_delivery_date: number;
       on_time_count: number;
       total_delivery_minutes: number;
       delivery_count: number;
@@ -144,6 +147,7 @@ function aggregateByCity(rows: CityPerformanceRow[]): CityAggregate[] {
       city: key,
       total_orders: 0,
       delivered_count: 0,
+      delivered_count_delivery_date: 0,
       on_time_count: 0,
       total_delivery_minutes: 0,
       delivery_count: 0,
@@ -151,6 +155,7 @@ function aggregateByCity(rows: CityPerformanceRow[]): CityAggregate[] {
 
     existing.total_orders += row.total_orders;
     existing.delivered_count += row.delivered_count;
+    existing.delivered_count_delivery_date += row.delivered_count_delivery_date;
     existing.on_time_count += row.on_time_count;
     if (row.avg_delivery_minutes !== null && row.avg_delivery_minutes !== undefined) {
       existing.total_delivery_minutes += row.avg_delivery_minutes * row.delivered_count;
@@ -164,6 +169,7 @@ function aggregateByCity(rows: CityPerformanceRow[]): CityAggregate[] {
     city: city.city,
     total_orders: city.total_orders,
     delivered_count: city.delivered_count,
+    delivered_count_delivery_date: city.delivered_count_delivery_date,
     on_time_count: city.on_time_count,
     late_count: city.delivered_count - city.on_time_count,
     otd_pct:
