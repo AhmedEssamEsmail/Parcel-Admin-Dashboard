@@ -57,11 +57,14 @@ export function GlobalFilters({
         />
       </label>
 
-      <div className="btn-row" style={{ alignItems: "end", gridColumn: "1 / -1" }}>
+      <div
+        className="btn-row"
+        style={{ alignItems: "end", gridColumn: "1 / -1", justifyContent: "space-between" }}
+      >
         <button className="btn" type="button" onClick={onApply} disabled={loading}>
           {loading ? "Loading..." : "Apply"}
         </button>
-        {trailing}
+        {trailing ? <div style={{ marginLeft: "auto" }}>{trailing}</div> : null}
       </div>
     </section>
   );

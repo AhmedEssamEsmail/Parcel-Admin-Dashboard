@@ -57,12 +57,14 @@ Done when:
 ## V9-3.2 Volume page UI
 - [x] Add `/volume` page with heatmap, loading/empty/error states.
 - [x] Add total vs avg-per-day toggle.
+- [x] Add normal-orders vs WA-orders toggle for both heatmap and forecast; aligned it to the right of `Apply` on the shared filter row and verified with full repo checks on 2026-03-06.
 Done when:
 - Heatmap responds to global filters.
 
 ## V9-3.3 Forecast API + UI
 - [x] Add `GET /api/volume-forecast` with 7 future points.
 - [x] Render forecast section on `/volume` with model notes.
+- [x] Scope forecast output to normal-only or WA-only order mode via the new toggle and verified with full repo checks on 2026-03-06.
 Done when:
 - Forecast always returns and renders exactly 7 days.
 

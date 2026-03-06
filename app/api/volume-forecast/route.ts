@@ -3,7 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { withRateLimit } from "@/lib/middleware/rate-limit";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 
-type DailyRow = { day: string; total_placed_inc_wa: number };
+type DailyRow = {
+  day: string;
+  total_placed_inc_wa: number;
+  total_placed_exc_wa: number;
+};
 
 function nextDate(isoDate: string, days: number): string {
   const date = new Date(`${isoDate}T00:00:00.000Z`);
@@ -16,6 +20,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
   const warehouse = params.get("warehouse")?.trim().toUpperCase();
   const from = params.get("from")?.trim();
   const to = params.get("to")?.trim();
+  const orderScope = params.get("orderScope")?.trim().toLowerCase() === "wa" ? "wa" : "normal";
 
   if (!from || !to) {
     return NextResponse.json({ error: "from and to are required" }, { status: 400 });
@@ -24,7 +29,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
   const supabase = getSupabaseAdminClient();
   let query = supabase
     .from("v_dod_summary")
-    .select("day,total_placed_inc_wa,warehouse_code")
+    .select("day,total_placed_inc_wa,total_placed_exc_wa,warehouse_code")
     .gte("day", from)
     .lte("day", to)
     .order("day", { ascending: true });
@@ -36,7 +41,10 @@ export const GET = withRateLimit(async (request: NextRequest) => {
 
   const totalsByDay = new Map<string, number>();
   for (const row of (data ?? []) as Array<DailyRow & { warehouse_code: string }>) {
-    totalsByDay.set(row.day, (totalsByDay.get(row.day) ?? 0) + Number(row.total_placed_inc_wa ?? 0));
+    const normalOrders = Number(row.total_placed_exc_wa ?? 0);
+    const waOrders = Number(row.total_placed_inc_wa ?? 0) - normalOrders;
+    const value = orderScope === "wa" ? Math.max(0, waOrders) : normalOrders;
+    totalsByDay.set(row.day, (totalsByDay.get(row.day) ?? 0) + value);
   }
 
   const historical = Array.from(totalsByDay.entries()).map(([day, value]) => ({ day, value }));
@@ -55,6 +63,10 @@ export const GET = withRateLimit(async (request: NextRequest) => {
   return NextResponse.json({
     historical,
     forecast,
-    model_notes: "Deterministic baseline forecast using recent average with light upward trend.",
+    order_scope: orderScope,
+    model_notes:
+      orderScope === "wa"
+        ? "Deterministic WA-only forecast using recent average with light upward trend."
+        : "Deterministic normal-orders forecast using recent average with light upward trend.",
   });
 });

@@ -9,6 +9,7 @@ import { useGlobalFilters } from "@/lib/filters/useGlobalFilters";
 type HeatCell = { day: string; dayIndex: number; hour: number; value: number };
 
 type ForecastPoint = { day: string; value: number };
+type OrderScope = "normal" | "wa";
 
 export default function VolumePage() {
   const { filters, setFilters, appliedFilters, applyFilters } = useGlobalFilters({
@@ -16,6 +17,7 @@ export default function VolumePage() {
     fromOffsetDays: -30,
   });
   const [mode, setMode] = useState<"total" | "avg">("total");
+  const [orderScope, setOrderScope] = useState<OrderScope>("normal");
   const [heatmap, setHeatmap] = useState<HeatCell[]>([]);
   const [forecast, setForecast] = useState<ForecastPoint[]>([]);
   const [historical, setHistorical] = useState<ForecastPoint[]>([]);
@@ -27,8 +29,8 @@ export default function VolumePage() {
     setLoading(true);
     setError(null);
     try {
-      const heatmapParams = new URLSearchParams({ ...appliedFilters, mode });
-      const forecastParams = new URLSearchParams(appliedFilters);
+      const heatmapParams = new URLSearchParams({ ...appliedFilters, mode, orderScope });
+      const forecastParams = new URLSearchParams({ ...appliedFilters, orderScope });
       const [heatmapRes, forecastRes] = await Promise.all([
         fetch(`/api/volume-heatmap?${heatmapParams.toString()}`),
         fetch(`/api/volume-forecast?${forecastParams.toString()}`),
@@ -54,7 +56,7 @@ export default function VolumePage() {
     } finally {
       setLoading(false);
     }
-  }, [appliedFilters, mode]);
+  }, [appliedFilters, mode, orderScope]);
 
   useEffect(() => {
     void load();
@@ -68,10 +70,32 @@ export default function VolumePage() {
       <AppNav />
       <header className="page-header">
         <h1>Volume Analytics</h1>
-        <p className="muted">Order volume heatmap and 7-day capacity forecast.</p>
+        <p className="muted">Order volume heatmap and 7-day capacity forecast for normal or WA orders.</p>
       </header>
 
-      <GlobalFilters filters={filters} onChange={setFilters} onApply={() => applyFilters()} />
+      <GlobalFilters
+        filters={filters}
+        onChange={setFilters}
+        onApply={() => applyFilters()}
+        trailing={
+          <div className="btn-row">
+            <button
+              className={orderScope === "normal" ? "btn" : "btn-ghost"}
+              type="button"
+              onClick={() => setOrderScope("normal")}
+            >
+              Normal Orders
+            </button>
+            <button
+              className={orderScope === "wa" ? "btn" : "btn-ghost"}
+              type="button"
+              onClick={() => setOrderScope("wa")}
+            >
+              WA Orders
+            </button>
+          </div>
+        }
+      />
 
       <section className="card">
         <div className="btn-row">
