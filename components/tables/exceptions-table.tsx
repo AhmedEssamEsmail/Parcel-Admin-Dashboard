@@ -40,13 +40,13 @@ export function ExceptionsTable({
           <tr>
             <th>Select</th>
             <th>Warehouse</th>
-            <th>Parcel</th>
+            <th className="metric-cell">Parcel</th>
             <th>Type</th>
             <th>Severity</th>
             <th>Status</th>
             <th>Assignee</th>
             <th>Category</th>
-            <th>Aging (h)</th>
+            <th className="metric-cell">Aging (h)</th>
             <th>Detected</th>
             <th>Action</th>
           </tr>
@@ -65,13 +65,13 @@ export function ExceptionsTable({
                   />
                 </td>
                 <td>{row.warehouse_code}</td>
-                <td>{parcelHref ? <Link href={parcelHref}>{row.parcel_id}</Link> : "-"}</td>
+                <td className="metric-cell">{parcelHref ? <Link href={parcelHref}>{row.parcel_id}</Link> : "-"}</td>
                 <td>{row.exception_type}</td>
                 <td>{row.severity}</td>
                 <td>{row.status}</td>
                 <td>{row.assignee ?? "-"}</td>
                 <td>{row.category ?? "-"}</td>
-                <td>{row.aging_hours}</td>
+                <td className="metric-cell">{row.aging_hours}</td>
                 <td>{formatDateMmmDd(row.detected_at)}</td>
                 <td className="btn-row">
                   <button className="btn-ghost" onClick={() => void onUpdate(row.id, "acknowledged")} type="button">Ack</button>

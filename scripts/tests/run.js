@@ -85,19 +85,19 @@ test("new operations routes and nav links exist", () => {
   assert.match(navSource, /"\/route-efficiency"/);
 });
 
-test("dashboard and tables expose both delivered concepts", () => {
+test("dashboard and tables expose renamed delivered concepts", () => {
   const dodTable = readSource("components/tables/dod-summary-table.tsx");
   const wowMomTable = readSource("components/tables/wow-mom-table.tsx");
   const comparisonWidget = readSource("components/widgets/comparison-widget.tsx");
   const routeEfficiencyTable = readSource("components/tables/route-efficiency-table.tsx");
 
-  assert.match(dodTable, /Delivered \(Order Date\)/);
-  assert.match(dodTable, /Delivered \(Delivery Date\)/);
-  assert.match(wowMomTable, /Delivered \(Order Date\)/);
-  assert.match(wowMomTable, /Delivered \(Delivery Date\)/);
-  assert.match(comparisonWidget, /Delivered \(Order Date\)/);
-  assert.match(comparisonWidget, /Delivered \(Delivery Date\)/);
-  assert.match(routeEfficiencyTable, /Delivered \(Delivery Date\)/);
+  assert.match(dodTable, /Delivered \(%\)/);
+  assert.match(dodTable, /Delivered \(Overall\)/);
+  assert.match(wowMomTable, /Delivered \(%\)/);
+  assert.match(wowMomTable, /Delivered \(Overall\)/);
+  assert.match(comparisonWidget, /Delivered \(%\)/);
+  assert.match(comparisonWidget, /Delivered \(Overall\)/);
+  assert.match(routeEfficiencyTable, /Delivered \(Overall\)/);
 });
 
 test("dashboard combo chart keeps total orders label", () => {

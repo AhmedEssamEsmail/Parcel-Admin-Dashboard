@@ -18,22 +18,22 @@ export function PromiseReliabilityDailyTable({ rows }: { rows: DailyRow[] }) {
         <thead>
           <tr>
             <th>Day</th>
-            <th>Total</th>
-            <th>Delivered w/ Promise</th>
-            <th>Within Window</th>
-            <th>Hit Rate %</th>
-            <th>Avg ETA Error (min)</th>
+            <th className="metric-cell">Total</th>
+            <th className="metric-cell">Delivered w/ Promise</th>
+            <th className="metric-cell">Within Window</th>
+            <th className="metric-cell">Hit Rate %</th>
+            <th className="metric-cell">Avg ETA Error (min)</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((row) => (
             <tr key={row.day}>
               <td>{formatDateMmmDd(row.day)}</td>
-              <td>{row.total_orders}</td>
-              <td>{row.delivered_with_promise}</td>
-              <td>{row.within_promise_window}</td>
-              <td>{row.promise_hit_rate?.toFixed(2) ?? "-"}</td>
-              <td>{row.avg_eta_error_minutes?.toFixed(2) ?? "-"}</td>
+              <td className="metric-cell">{row.total_orders}</td>
+              <td className="metric-cell">{row.delivered_with_promise}</td>
+              <td className="metric-cell">{row.within_promise_window}</td>
+              <td className="metric-cell">{row.promise_hit_rate?.toFixed(2) ?? "-"}</td>
+              <td className="metric-cell">{row.avg_eta_error_minutes?.toFixed(2) ?? "-"}</td>
             </tr>
           ))}
         </tbody>
