@@ -1,0 +1,58 @@
+version: 2
+updates:
+  # Enable version updates for npm dependencies
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'daily'
+      time: '03:00'
+      timezone: 'UTC'
+    open-pull-requests-limit: 10
+    reviewers:
+      - 'parcel-admin-team'
+    labels:
+      - 'dependencies'
+      - 'automated'
+    commit-message:
+      prefix: 'chore'
+      prefix-development: 'chore'
+      include: 'scope'
+    # Ignore major version updates to prevent breaking changes
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
+    # Group dev dependencies together
+    groups:
+      dev-dependencies:
+        patterns:
+          - '@types/*'
+          - '@testing-library/*'
+          - '@vitest/*'
+          - 'eslint*'
+          - 'prettier'
+          - 'typescript'
+          - 'vitest'
+          - 'playwright'
+          - 'husky'
+          - 'lint-staged'
+          - '@commitlint/*'
+        update-types:
+          - 'minor'
+          - 'patch'
+
+  # Enable version updates for GitHub Actions
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '03:00'
+      timezone: 'UTC'
+    open-pull-requests-limit: 5
+    labels:
+      - 'dependencies'
+      - 'github-actions'
+      - 'automated'
+    commit-message:
+      prefix: 'chore'
+      include: 'scope'
