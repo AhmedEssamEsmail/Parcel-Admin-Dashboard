@@ -20,6 +20,7 @@ export const testsPassingGate: QualityGate = {
   requiredFor: [AgentRole.DEVELOPER, AgentRole.QA_ENGINEER],
   blocker: true,
   timeout: 5 * 60 * 1000, // 5 minutes
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   check: async (_workItem: WorkItem): Promise<boolean> => {
     try {
       // Run unit tests
@@ -53,8 +54,12 @@ export const noLintErrorsGate: QualityGate = {
         return true;
       }
 
-      // Filter for TypeScript/JavaScript files
-      const codeFiles = workItem.artifacts.filter((file) => /\.(ts|tsx|js|jsx)$/.test(file));
+      // Filter for TypeScript/JavaScript files from artifacts
+      // Artifacts with type 'file' contain file paths in their data property
+      const codeFiles = workItem.artifacts
+        .filter((artifact) => artifact.type === 'file' && typeof artifact.data === 'string')
+        .map((artifact) => artifact.data as string)
+        .filter((file) => /\.(ts|tsx|js|jsx)$/.test(file));
 
       if (codeFiles.length === 0) {
         return true;
@@ -84,6 +89,7 @@ export const typeCheckPassesGate: QualityGate = {
   requiredFor: [AgentRole.DEVELOPER],
   blocker: true,
   timeout: 2 * 60 * 1000, // 2 minutes
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   check: async (_workItem: WorkItem): Promise<boolean> => {
     try {
       execSync('npm run type-check', {
@@ -109,6 +115,7 @@ export const testCoverageGate: QualityGate = {
   requiredFor: [AgentRole.DEVELOPER, AgentRole.QA_ENGINEER],
   blocker: true,
   timeout: 5 * 60 * 1000, // 5 minutes
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   check: async (_workItem: WorkItem): Promise<boolean> => {
     try {
       // Run coverage
@@ -160,9 +167,10 @@ export const migrationHasRollbackGate: QualityGate = {
   check: async (workItem: WorkItem): Promise<boolean> => {
     try {
       // Check if any migration files in artifacts
-      const migrationFiles = workItem.artifacts.filter(
-        (file) => file.includes('migration') || file.includes('supabase/migrations')
-      );
+      const migrationFiles = workItem.artifacts
+        .filter((artifact) => artifact.type === 'file' && typeof artifact.data === 'string')
+        .map((artifact) => artifact.data as string)
+        .filter((file) => file.includes('migration') || file.includes('supabase/migrations'));
 
       if (migrationFiles.length === 0) {
         // No migrations, pass
@@ -212,6 +220,7 @@ export const ciPipelinePassesGate: QualityGate = {
   requiredFor: [AgentRole.DEVOPS],
   blocker: true,
   timeout: 10 * 60 * 1000, // 10 minutes
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   check: async (_workItem: WorkItem): Promise<boolean> => {
     try {
       // Run all validation commands

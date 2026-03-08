@@ -13,6 +13,11 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { MessageBus } from '@/multi-agent-system/lib/message-bus';
 import { AgentMessage } from '@/multi-agent-system/lib/types';
 
+/**
+ * Enable verbose performance logging (set to true for debugging)
+ */
+const VERBOSE_LOGGING = false;
+
 interface PerformanceMetrics {
   latencies: number[];
   throughput: number;
@@ -29,6 +34,15 @@ function calculatePercentile(sortedValues: number[], percentile: number): number
   if (sortedValues.length === 0) return 0;
   const index = Math.ceil((percentile / 100) * sortedValues.length) - 1;
   return sortedValues[Math.max(0, index)];
+}
+
+/**
+ * Log performance metrics only if verbose logging is enabled
+ */
+function logPerformance(message: string): void {
+  if (VERBOSE_LOGGING) {
+    console.log(message);
+  }
 }
 
 /**
@@ -114,7 +128,8 @@ describe('Message Bus Performance', () => {
   let messageBus: MessageBus;
 
   beforeEach(() => {
-    messageBus = new MessageBus();
+    // Use fast retries for tests (10ms instead of 1000ms)
+    messageBus = new MessageBus({ maxRetries: 3, baseRetryDelay: 10 });
   });
 
   afterEach(() => {
@@ -154,15 +169,15 @@ describe('Message Bus Performance', () => {
       const maxQueueDepth = Math.max(...metrics.queueDepths);
 
       // Log results
-      console.log('\n=== Load Test Results (1000 msg/min, 10 agents) ===');
-      console.log(`Messages processed: ${metrics.latencies.length}`);
-      console.log(`Throughput: ${metrics.throughput.toFixed(2)} msg/sec`);
-      console.log(`Latency p50: ${p50.toFixed(2)}ms`);
-      console.log(`Latency p95: ${p95.toFixed(2)}ms`);
-      console.log(`Latency p99: ${p99.toFixed(2)}ms`);
-      console.log(`Avg queue depth: ${avgQueueDepth.toFixed(2)}`);
-      console.log(`Max queue depth: ${maxQueueDepth}`);
-      console.log(`Dead letter queue: ${metrics.deadLetterCount}`);
+      logPerformance('\n=== Load Test Results (1000 msg/min, 10 agents) ===');
+      logPerformance(`Messages processed: ${metrics.latencies.length}`);
+      logPerformance(`Throughput: ${metrics.throughput.toFixed(2)} msg/sec`);
+      logPerformance(`Latency p50: ${p50.toFixed(2)}ms`);
+      logPerformance(`Latency p95: ${p95.toFixed(2)}ms`);
+      logPerformance(`Latency p99: ${p99.toFixed(2)}ms`);
+      logPerformance(`Avg queue depth: ${avgQueueDepth.toFixed(2)}`);
+      logPerformance(`Max queue depth: ${maxQueueDepth}`);
+      logPerformance(`Dead letter queue: ${metrics.deadLetterCount}`);
 
       // Assertions - NFR-1: Message latency < 5s (p99)
       expect(p99).toBeLessThan(5000);
@@ -234,12 +249,12 @@ describe('Message Bus Performance', () => {
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
       // Analyze latencies by priority
-      console.log('\n=== Latency by Priority Level ===');
+      logPerformance('\n=== Latency by Priority Level ===');
       for (const priority of priorities) {
         const latencies = latenciesByPriority[priority].sort((a, b) => a - b);
         const p99 = calculatePercentile(latencies, 99);
 
-        console.log(
+        logPerformance(
           `${priority.toUpperCase()} - p99: ${p99.toFixed(2)}ms (${latencies.length} messages)`
         );
 
@@ -294,15 +309,15 @@ describe('Message Bus Performance', () => {
       const maxQueueDepth = Math.max(...metrics.queueDepths);
 
       // Log results
-      console.log('\n=== Stress Test Results (5000 msg/min, 20 agents) ===');
-      console.log(`Messages processed: ${metrics.latencies.length}`);
-      console.log(`Throughput: ${metrics.throughput.toFixed(2)} msg/sec`);
-      console.log(`Latency p50: ${p50.toFixed(2)}ms`);
-      console.log(`Latency p95: ${p95.toFixed(2)}ms`);
-      console.log(`Latency p99: ${p99.toFixed(2)}ms`);
-      console.log(`Avg queue depth: ${avgQueueDepth.toFixed(2)}`);
-      console.log(`Max queue depth: ${maxQueueDepth}`);
-      console.log(`Dead letter queue: ${metrics.deadLetterCount}`);
+      logPerformance('\n=== Stress Test Results (5000 msg/min, 20 agents) ===');
+      logPerformance(`Messages processed: ${metrics.latencies.length}`);
+      logPerformance(`Throughput: ${metrics.throughput.toFixed(2)} msg/sec`);
+      logPerformance(`Latency p50: ${p50.toFixed(2)}ms`);
+      logPerformance(`Latency p95: ${p95.toFixed(2)}ms`);
+      logPerformance(`Latency p99: ${p99.toFixed(2)}ms`);
+      logPerformance(`Avg queue depth: ${avgQueueDepth.toFixed(2)}`);
+      logPerformance(`Max queue depth: ${maxQueueDepth}`);
+      logPerformance(`Dead letter queue: ${metrics.deadLetterCount}`);
 
       // System should remain stable under stress
       expect(p99).toBeLessThan(5000);
@@ -361,12 +376,12 @@ describe('Message Bus Performance', () => {
       const p99 = calculatePercentile(sortedLatencies, 99);
       const throughput = burstSize / duration;
 
-      console.log('\n=== Burst Traffic Test Results ===');
-      console.log(`Burst size: ${burstSize} messages`);
-      console.log(`Duration: ${duration.toFixed(2)}s`);
-      console.log(`Throughput: ${throughput.toFixed(2)} msg/sec`);
-      console.log(`Latency p99: ${p99.toFixed(2)}ms`);
-      console.log(`Messages processed: ${latencies.length}`);
+      logPerformance('\n=== Burst Traffic Test Results ===');
+      logPerformance(`Burst size: ${burstSize} messages`);
+      logPerformance(`Duration: ${duration.toFixed(2)}s`);
+      logPerformance(`Throughput: ${throughput.toFixed(2)} msg/sec`);
+      logPerformance(`Latency p99: ${p99.toFixed(2)}ms`);
+      logPerformance(`Messages processed: ${latencies.length}`);
 
       // Should handle burst without excessive latency
       expect(p99).toBeLessThan(5000);
@@ -471,13 +486,13 @@ describe('Message Bus Performance', () => {
 
       const finalQueueSize = messageBus.getQueueSize();
 
-      console.log('\n=== Memory Stability Test ===');
-      console.log(`Rounds: ${rounds}`);
-      console.log(`Messages per round: ${messagesPerRound}`);
-      console.log(`Total messages: ${rounds * messagesPerRound}`);
-      console.log(`Initial queue size: ${initialQueueSize}`);
-      console.log(`Final queue size: ${finalQueueSize}`);
-      console.log(`Messages processed: ${latencies.length}`);
+      logPerformance('\n=== Memory Stability Test ===');
+      logPerformance(`Rounds: ${rounds}`);
+      logPerformance(`Messages per round: ${messagesPerRound}`);
+      logPerformance(`Total messages: ${rounds * messagesPerRound}`);
+      logPerformance(`Initial queue size: ${initialQueueSize}`);
+      logPerformance(`Final queue size: ${finalQueueSize}`);
+      logPerformance(`Messages processed: ${latencies.length}`);
 
       // Queue should not grow over time
       expect(finalQueueSize).toBeLessThanOrEqual(initialQueueSize + 5);
@@ -520,10 +535,10 @@ describe('Message Bus Performance', () => {
 
       const deadLetterCount = messageBus.getDeadLetterQueue().length;
 
-      console.log('\n=== Failure Handling Test ===');
-      console.log(`Messages sent: 50`);
-      console.log(`Successful deliveries: ${latencies.length}`);
-      console.log(`Dead letter queue: ${deadLetterCount}`);
+      logPerformance('\n=== Failure Handling Test ===');
+      logPerformance(`Messages sent: 50`);
+      logPerformance(`Successful deliveries: ${latencies.length}`);
+      logPerformance(`Dead letter queue: ${deadLetterCount}`);
 
       // Normal agents should receive their messages
       expect(latencies.length).toBeGreaterThan(20);

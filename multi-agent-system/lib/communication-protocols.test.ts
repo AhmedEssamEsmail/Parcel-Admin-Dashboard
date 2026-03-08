@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { MessageBus } from './message-bus';
 import { AgentRegistry } from './agent-registry';
 import { SharedContextManager } from './shared-context';
@@ -19,7 +19,7 @@ describe('HelpRequestProtocol', () => {
   let helpRequest: HelpRequestProtocol;
 
   beforeEach(async () => {
-    messageBus = new MessageBus();
+    messageBus = new MessageBus({ maxRetries: 3, baseRetryDelay: 10 });
     agentRegistry = new AgentRegistry();
     await agentRegistry.initialize();
     helpRequest = new HelpRequestProtocol(messageBus, agentRegistry);
@@ -220,7 +220,7 @@ describe('EscalationProtocol', () => {
   let escalation: EscalationProtocol;
 
   beforeEach(async () => {
-    messageBus = new MessageBus();
+    messageBus = new MessageBus({ maxRetries: 3, baseRetryDelay: 10 });
     agentRegistry = new AgentRegistry();
     await agentRegistry.initialize();
     escalation = new EscalationProtocol(messageBus, agentRegistry);
@@ -381,7 +381,7 @@ describe('EscalationProtocol', () => {
 
     messageBus.subscribe(techLeadId, () => {});
 
-    const result = await escalation.escalateToTechLead(developerId, 'Issue', {});
+    await escalation.escalateToTechLead(developerId, 'Issue', {});
     await new Promise((resolve) => setTimeout(resolve, 50));
 
     const escalations = escalation.getEscalations(developerId);
@@ -402,7 +402,7 @@ describe('WorkCompletionProtocol', () => {
   let workCompletion: WorkCompletionProtocol;
 
   beforeEach(async () => {
-    messageBus = new MessageBus();
+    messageBus = new MessageBus({ maxRetries: 3, baseRetryDelay: 10 });
     agentRegistry = new AgentRegistry();
     await agentRegistry.initialize();
     sharedContext = new SharedContextManager();
@@ -456,7 +456,10 @@ describe('WorkCompletionProtocol', () => {
     const result = await workCompletion.notifyWorkComplete(
       developerId,
       taskId,
-      ['app/api/auth/login/route.ts', 'tests/integration/api/auth.test.ts'],
+      [
+        { type: 'file', data: 'app/api/auth/login/route.ts' },
+        { type: 'file', data: 'tests/integration/api/auth.test.ts' },
+      ],
       {
         timeSpent: 3600,
         linesAdded: 150,
@@ -542,7 +545,7 @@ describe('AutomaticNotificationSystem', () => {
   let notifications: AutomaticNotificationSystem;
 
   beforeEach(async () => {
-    messageBus = new MessageBus();
+    messageBus = new MessageBus({ maxRetries: 3, baseRetryDelay: 10 });
     agentRegistry = new AgentRegistry();
     await agentRegistry.initialize();
     workflowEngine = new WorkflowEngine(messageBus, agentRegistry);
@@ -689,7 +692,7 @@ describe('CommunicationProtocolsManager', () => {
   let workflowEngine: WorkflowEngine;
 
   beforeEach(async () => {
-    messageBus = new MessageBus();
+    messageBus = new MessageBus({ maxRetries: 3, baseRetryDelay: 10 });
     agentRegistry = new AgentRegistry();
     await agentRegistry.initialize();
     sharedContext = new SharedContextManager();

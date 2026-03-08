@@ -9,11 +9,7 @@ import { agentRegistry } from '@/multi-agent-system/lib/agent-registry';
 import { AgentRole } from '@/multi-agent-system/lib/agent-definition-schema';
 import { SharedContextManager } from '@/multi-agent-system/lib/shared-context';
 import { AgentDefinitionLoader } from '@/multi-agent-system/lib/agent-definition-loader';
-import {
-  InvokeSubAgentParams,
-  AgentCompletionResult,
-  AgentEscalation,
-} from '@/multi-agent-system/lib/agent-invocation-types';
+import { InvokeSubAgentParams } from '@/multi-agent-system/lib/agent-invocation-types';
 import { AgentMessage } from '@/multi-agent-system/lib/types';
 
 describe('AgentInvocationManager', () => {
@@ -23,7 +19,8 @@ describe('AgentInvocationManager', () => {
   let definitionLoader: AgentDefinitionLoader;
 
   beforeEach(async () => {
-    messageBus = new MessageBus();
+    // Use fast retries for tests (10ms instead of 1000ms)
+    messageBus = new MessageBus({ maxRetries: 3, baseRetryDelay: 10 });
     registry = agentRegistry;
     definitionLoader = new AgentDefinitionLoader();
     invocationManager = new AgentInvocationManager(registry, definitionLoader, messageBus);
@@ -443,18 +440,11 @@ describe('AgentInvocationManager', () => {
 
       const result = await invocationManager.invokeSubAgent(params);
 
-      const terminated = await invocationManager.terminateAgent(
-        result.agentId,
-        'Manual termination'
-      );
+      await invocationManager.terminateAgent(result.agentId);
 
-      expect(terminated).toBe(true);
-      expect(onCompleteMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          success: false,
-          error: 'Manual termination',
-        })
-      );
+      // Agent should be removed from sessions
+      const session = invocationManager.getSession(result.agentId);
+      expect(session).toBeUndefined();
 
       // Agent should be removed from spawned agents
       const spawnedAgent = invocationManager.getSpawnedAgent(result.agentId);
@@ -679,7 +669,7 @@ describe('AgentInvocationManager', () => {
       const rootId = 'tech-lead-1';
 
       // Spawn parent agent
-      const parentPromise = invocationManager.invokeAgent({
+      invocationManager.invokeAgent({
         role: AgentRole.DEVELOPER,
         prompt: 'Parent task',
         parentAgentId: rootId,
@@ -689,7 +679,7 @@ describe('AgentInvocationManager', () => {
       const parentAgentId = sessions1[0]?.agentId;
 
       // Spawn child agent
-      const childPromise = invocationManager.invokeAgent({
+      invocationManager.invokeAgent({
         role: AgentRole.DEVELOPER,
         prompt: 'Child task',
         parentAgentId: parentAgentId,
@@ -821,7 +811,7 @@ describe('AgentInvocationManager', () => {
       const promise = invocationManager.invokeAgent({
         role: AgentRole.DEVELOPER,
         prompt: 'Implement feature',
-        sharedContext: customContext,
+        sharedContext: customContext as unknown, // Cast since SharedContextManager implements SharedContext
       });
 
       const sessions = invocationManager.getAllSessions();

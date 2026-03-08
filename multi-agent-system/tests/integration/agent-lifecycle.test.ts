@@ -17,7 +17,8 @@ describe('Integration: Agent Registration and Lifecycle', () => {
   beforeEach(async () => {
     registry = new AgentRegistry();
     await registry.initialize();
-    messageBus = new MessageBus();
+    // Use fast retries for tests (10ms instead of 1000ms)
+    messageBus = new MessageBus({ maxRetries: 3, baseRetryDelay: 10 });
   });
 
   afterEach(() => {
@@ -270,7 +271,11 @@ describe('Integration: Agent Registration and Lifecycle', () => {
       messageBus.subscribe(devId, async (msg) => {
         messages.push(msg);
         if (msg.payload.action === 'implement-feature') {
-          registry.updateStatus(devId, 'busy', msg.payload.feature);
+          registry.updateStatus(
+            devId,
+            'busy',
+            (msg.payload as Record<string, unknown>).feature as string
+          );
         }
       });
 

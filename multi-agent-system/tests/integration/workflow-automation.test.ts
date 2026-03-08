@@ -6,8 +6,6 @@ import { QualityGatesSystem } from '@/multi-agent-system/lib/quality-gates';
 import { WorkflowEngine } from '@/multi-agent-system/lib/workflow-engine';
 import { AgentRole } from '@/multi-agent-system/lib/agent-definition-schema';
 import type { AgentMessage } from '@/multi-agent-system/lib/types';
-import type { WorkItem } from '@/multi-agent-system/lib/shared-context-types';
-import type { QualityGate } from '@/multi-agent-system/lib/quality-gates-types';
 import type { WorkflowEvent } from '@/multi-agent-system/lib/workflow-types';
 
 /**
@@ -26,7 +24,8 @@ describe('Integration: Workflow Automation', () => {
   let workflowEngine: WorkflowEngine;
 
   beforeEach(async () => {
-    messageBus = new MessageBus();
+    // Use fast retries for tests (10ms instead of 1000ms)
+    messageBus = new MessageBus({ maxRetries: 3, baseRetryDelay: 10 });
     registry = new AgentRegistry();
     await registry.initialize();
     sharedContext = new SharedContextManager();
@@ -98,7 +97,8 @@ describe('Integration: Workflow Automation', () => {
     // Verify: QA engineer received test-feature request
     expect(qaMessages).toHaveLength(1);
     expect(qaMessages[0].payload.action).toBe('test-feature');
-    expect(qaMessages[0].payload.context.event.type).toBe('feature-complete');
+    const context101 = qaMessages[0].payload.context as { event?: { type?: string } };
+    expect(context101?.event?.type).toBe('feature-complete');
     expect(qaMessages[0].priority).toBe('high'); // Priority 80 maps to high
   });
 
@@ -185,7 +185,10 @@ describe('Integration: Workflow Automation', () => {
     expect(developerMessages).toHaveLength(1);
     expect(developerMessages[0].payload.action).toBe('fix-bug');
     expect(developerMessages[0].priority).toBe('critical'); // Priority 90 maps to critical
-    expect(developerMessages[0].payload.context.event.data.testResults).toBeDefined();
+    const context188 = developerMessages[0].payload.context as {
+      event?: { data?: { testResults?: unknown } };
+    };
+    expect(context188?.event?.data?.testResults).toBeDefined();
   });
 
   it('should handle complete feature → QA → bug fix → retest workflow', async () => {
@@ -539,9 +542,15 @@ describe('Integration: Workflow Automation', () => {
     });
 
     const allMessages: AgentMessage[] = [];
-    messageBus.subscribe('dev-1', async (msg) => allMessages.push(msg));
-    messageBus.subscribe('qa-1', async (msg) => allMessages.push(msg));
-    messageBus.subscribe('architect-1', async (msg) => allMessages.push(msg));
+    messageBus.subscribe('dev-1', async (msg) => {
+      allMessages.push(msg);
+    });
+    messageBus.subscribe('qa-1', async (msg) => {
+      allMessages.push(msg);
+    });
+    messageBus.subscribe('architect-1', async (msg) => {
+      allMessages.push(msg);
+    });
 
     // Trigger multiple events concurrently
     const events: WorkflowEvent[] = [

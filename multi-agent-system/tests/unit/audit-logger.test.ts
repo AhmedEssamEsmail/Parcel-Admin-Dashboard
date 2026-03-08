@@ -473,13 +473,15 @@ describe('AuditLogger', () => {
     it('should query logs by agent ID', () => {
       const logs = logger.query({ agentId: 'agent-1' });
       expect(logs.length).toBe(2);
-      expect(logs.every((log) => log.agentId === 'agent-1')).toBe(true);
+      expect(logs.every((log: { agentId: string }) => log.agentId === 'agent-1')).toBe(true);
     });
 
     it('should query logs by role', () => {
       const logs = logger.query({ agentRole: AgentRole.DEVELOPER });
       expect(logs.length).toBe(2);
-      expect(logs.every((log) => log.agentRole === AgentRole.DEVELOPER)).toBe(true);
+      expect(
+        logs.every((log: { agentRole: AgentRole }) => log.agentRole === AgentRole.DEVELOPER)
+      ).toBe(true);
     });
 
     it('should query logs by event type', () => {

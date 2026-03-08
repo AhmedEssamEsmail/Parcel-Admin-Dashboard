@@ -5,7 +5,6 @@ import { MessageBus } from './message-bus';
 import { AgentRegistry } from './agent-registry';
 import { AgentRole } from './agent-definition-schema';
 import type {
-  Conflict,
   FileAccessRequest,
   AgentWaitState,
   FileConflictDetails,
@@ -21,7 +20,8 @@ describe('ConflictResolver', () => {
 
   beforeEach(async () => {
     sharedContext = new SharedContextManager();
-    messageBus = new MessageBus();
+    // Use fast retries for tests (10ms instead of 1000ms)
+    messageBus = new MessageBus({ maxRetries: 3, baseRetryDelay: 10 });
     agentRegistry = new AgentRegistry();
 
     // Initialize registry

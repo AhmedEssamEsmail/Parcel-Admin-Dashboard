@@ -10,7 +10,10 @@ import { MessageBus } from '@/multi-agent-system/lib/message-bus';
 import { SharedContextManager } from '@/multi-agent-system/lib/shared-context';
 import { AgentRole } from '@/multi-agent-system/lib/roles';
 import { AgentMessage } from '@/multi-agent-system/lib/types';
-import { AgentEscalation, AgentInvocationResult } from '@/multi-agent-system/lib/agent-invocation-types';
+import {
+  AgentEscalation,
+  AgentInvocationResult,
+} from '@/multi-agent-system/lib/agent-invocation-types';
 
 describe('Agent Invocation Integration Tests', () => {
   let invocationManager: AgentInvocationManager;
@@ -22,7 +25,8 @@ describe('Agent Invocation Integration Tests', () => {
   beforeEach(() => {
     registry = new AgentRegistry();
     definitionLoader = new AgentDefinitionLoader();
-    messageBus = new MessageBus();
+    // Use fast retries for tests (10ms instead of 1000ms)
+    messageBus = new MessageBus({ maxRetries: 3, baseRetryDelay: 10 });
     sharedContext = new SharedContextManager();
     invocationManager = new AgentInvocationManager(
       registry,
@@ -178,7 +182,11 @@ describe('Agent Invocation Integration Tests', () => {
     it('should forward escalations to parent agent', async () => {
       const parentAgentId = 'tech-lead-1';
       let escalationReceived = false;
-      let receivedEscalation: any = null;
+      let receivedEscalation: {
+        issue?: string;
+        context?: unknown;
+        recommendation?: string;
+      } | null = null;
 
       // Subscribe parent to receive escalations
       messageBus.subscribe(parentAgentId, (message) => {
@@ -225,8 +233,7 @@ describe('Agent Invocation Integration Tests', () => {
 
         expect(escalationReceived).toBe(true);
         expect(receivedEscalation).toBeDefined();
-        expect(receivedEscalation.escalation).toBeDefined();
-        expect(receivedEscalation.escalation.issue).toBe('Cannot resolve dependency conflict');
+        expect(receivedEscalation!.issue).toBe('Cannot resolve dependency conflict');
 
         // Complete
         await messageBus.send({
@@ -246,7 +253,6 @@ describe('Agent Invocation Integration Tests', () => {
 
     it('should support multi-level hierarchy', async () => {
       const grandparentId = 'parent-agent';
-      const parentId = 'tech-lead-1';
 
       // Spawn tech lead as child of parent
       const techLeadPromise = invocationManager.invokeAgent({
@@ -300,7 +306,7 @@ describe('Agent Invocation Integration Tests', () => {
       const promise = invocationManager.invokeAgent({
         role: AgentRole.DEVELOPER,
         prompt: 'Implement feature',
-        sharedContext: customContext,
+        sharedContext: customContext as unknown, // Cast since SharedContextManager implements SharedContext
       });
 
       await new Promise((resolve) => setTimeout(resolve, 50));
@@ -492,11 +498,11 @@ describe('Agent Invocation Integration Tests', () => {
       await promise;
 
       expect(completionResult).not.toBeNull();
-      expect(completionResult?.success).toBe(true);
-      expect(completionResult?.result).toEqual({ success: true, data: 'feature implemented' });
-      expect(completionResult?.artifacts).toEqual(['src/auth.ts', 'tests/auth.test.ts']);
-      expect(completionResult?.metrics).toBeDefined();
-      expect(completionResult?.metrics?.timeSpent).toBeGreaterThan(0);
+      expect(completionResult!.success).toBe(true);
+      expect(completionResult!.result).toEqual({ success: true, data: 'feature implemented' });
+      expect(completionResult!.artifacts).toEqual(['src/auth.ts', 'tests/auth.test.ts']);
+      expect(completionResult!.metrics).toBeDefined();
+      expect(completionResult!.metrics?.timeSpent).toBeGreaterThan(0);
     });
 
     it('should call onEscalate callback for escalations', async () => {
@@ -541,10 +547,12 @@ describe('Agent Invocation Integration Tests', () => {
         await new Promise((resolve) => setTimeout(resolve, 100));
 
         expect(escalationData).not.toBeNull();
-        expect(escalationData?.issue).toBe('Cannot resolve merge conflict');
-        expect(escalationData?.severity).toBe('critical');
-        expect(escalationData?.context.attemptedSolutions).toHaveLength(2);
-        expect(escalationData?.recommendation).toBe('Manual review needed');
+        expect(escalationData!.issue).toBe('Cannot resolve merge conflict');
+        expect(escalationData!.severity).toBe('critical');
+        expect(
+          (escalationData!.context as Record<string, unknown>).attemptedSolutions
+        ).toHaveLength(2);
+        expect(escalationData!.recommendation).toBe('Manual review needed');
 
         // Complete
         await messageBus.send({
@@ -568,7 +576,8 @@ describe('Agent Invocation Integration Tests', () => {
       const promise = invocationManager.invokeAgent({
         role: AgentRole.DEVELOPER,
         prompt: 'Implement feature',
-        onMessage: async (message) => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        onMessage: async (_message) => {
           // Simulate async operation
           await new Promise((resolve) => setTimeout(resolve, 50));
           asyncCallbackCompleted = true;
@@ -687,7 +696,7 @@ describe('Agent Invocation Integration Tests', () => {
       expect(result.success).toBe(false);
       expect(result.error).toBe('Agent timed out');
       expect(timeoutResult).not.toBeNull();
-      expect(timeoutResult?.success).toBe(false);
+      expect(timeoutResult!.success).toBe(false);
     });
 
     it('should track metrics correctly', async () => {
@@ -757,7 +766,7 @@ describe('Agent Invocation Integration Tests', () => {
     });
 
     it('should handle agent termination', async () => {
-      const promise = invocationManager.invokeAgent({
+      invocationManager.invokeAgent({
         role: AgentRole.DEVELOPER,
         prompt: 'Implement feature',
       });

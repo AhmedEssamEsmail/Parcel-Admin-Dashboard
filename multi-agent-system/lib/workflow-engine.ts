@@ -9,6 +9,7 @@ import {
   DependencyGraph,
 } from './workflow-types';
 import { AgentMessage } from './types';
+import { getLogger } from './logger';
 
 /**
  * Workflow Engine
@@ -46,15 +47,36 @@ export class WorkflowEngine {
    * Process a workflow event and execute matching rules
    */
   async processEvent(event: WorkflowEvent): Promise<void> {
+    const logger = getLogger();
+    const correlationId = logger.generateCorrelationId();
+
     // Find all rules that match this event type
     const matchingRules = this.rules.filter((rule) => rule.trigger === event.type);
+
+    logger.debug(
+      'Workflow',
+      `Processing event '${event.type}', found ${matchingRules.length} matching rules`,
+      {
+        eventType: event.type,
+        matchingRules: matchingRules.length,
+        correlationId,
+      }
+    );
 
     // Execute rules in priority order
     for (const rule of matchingRules) {
       // Check condition if present
       if (rule.condition && !rule.condition(event.data)) {
+        logger.debug('Workflow', `Rule '${rule.id}' condition not met, skipping`, {
+          ruleId: rule.id,
+          eventType: event.type,
+          correlationId,
+        });
         continue;
       }
+
+      // Log workflow trigger
+      logger.logWorkflowTrigger(event.type, rule.id, [rule.action], correlationId);
 
       // Execute the rule action
       await this.executeRuleAction(rule, event);
@@ -65,13 +87,19 @@ export class WorkflowEngine {
    * Execute a rule's action
    */
   private async executeRuleAction(rule: WorkflowRule, event: WorkflowEvent): Promise<void> {
+    const logger = getLogger();
+
     // Find an available agent with the target role
     const agents = this.agentRegistry.getAgentsByRole(rule.target);
     const availableAgent = agents.find((agent) => agent.status === 'idle');
 
     if (!availableAgent) {
       // No available agent, log warning
-      console.warn(`No available agent with role ${rule.target} for rule ${rule.id}`);
+      logger.warn('Workflow', `No available agent with role ${rule.target} for rule ${rule.id}`, {
+        ruleId: rule.id,
+        targetRole: rule.target,
+        eventType: event.type,
+      });
       return;
     }
 
@@ -93,6 +121,18 @@ export class WorkflowEngine {
       timestamp: new Date(),
       acknowledged: false,
     };
+
+    logger.info(
+      'Workflow',
+      `Executing rule '${rule.id}' action '${rule.action}' for agent ${availableAgent.id}`,
+      {
+        ruleId: rule.id,
+        action: rule.action,
+        targetAgent: availableAgent.id,
+        targetRole: rule.target,
+        messageId: message.id,
+      }
+    );
 
     await this.messageBus.send(message);
   }

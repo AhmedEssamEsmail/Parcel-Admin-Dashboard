@@ -10,6 +10,7 @@ import {
   SyncState,
   BatchedUpdate,
 } from './shared-context-types';
+import { getLogger } from './logger';
 
 /**
  * LRU Cache Manager with TTL support
@@ -404,6 +405,7 @@ export class SharedContextManager {
     type: 'read' | 'write' = 'write',
     timeoutMs: number = 10 * 60 * 1000
   ): Promise<boolean> {
+    const logger = getLogger();
     const existingLock = this.fileLocks.get(filePath);
 
     if (existingLock) {
@@ -414,9 +416,21 @@ export class SharedContextManager {
         // Lock still valid
         if (type === 'read' && existingLock.type === 'read') {
           // Multiple read locks allowed
+          logger.logFileLock(agentId, 'acquired', filePath, 'read');
           return true;
         }
-        // Write lock or conflicting lock types
+        // Write lock or conflicting lock types - provide detailed error context
+        logger.logFileLock(agentId, 'failed', filePath, type);
+        logger.warn('FileLock', `File lock acquisition failed for ${filePath}`, {
+          filePath,
+          requestedBy: agentId,
+          requestedType: type,
+          currentLockHolder: existingLock.lockedBy,
+          currentLockType: existingLock.type,
+          lockAcquiredAt: existingLock.acquiredAt.toISOString(),
+          lockExpiresAt: existingLock.expiresAt.toISOString(),
+          timeRemaining: existingLock.expiresAt.getTime() - Date.now(),
+        });
         return false;
       }
     }
@@ -434,6 +448,9 @@ export class SharedContextManager {
     };
 
     this.fileLocks.set(filePath, lock);
+
+    logger.logFileLock(agentId, 'acquired', filePath, type);
+
     return true;
   }
 
@@ -441,10 +458,13 @@ export class SharedContextManager {
    * Release a file lock
    */
   releaseFileLock(agentId: string, filePath: string): void {
+    const logger = getLogger();
     const lock = this.fileLocks.get(filePath);
 
     if (lock && lock.lockedBy === agentId) {
       this.fileLocks.delete(filePath);
+
+      logger.logFileLock(agentId, 'released', filePath, lock.type);
 
       // Clear renewal timer if exists
       const timer = this.lockRenewalTimers.get(filePath);
@@ -675,6 +695,31 @@ export class SharedContextManager {
     if (!allowed.includes(to)) {
       throw new Error(`Invalid state transition from ${from} to ${to}`);
     }
+  }
+
+  /**
+   * Add an artifact to a work item
+   */
+  addArtifact(workItemId: string, type: string, data: unknown): void {
+    const workItem = this.workItems.get(workItemId);
+
+    if (!workItem) {
+      throw new Error(`Work item ${workItemId} not found`);
+    }
+
+    // Add artifact to the work item
+    workItem.artifacts.push({ type, data });
+
+    // Invalidate cache
+    this.workItemCache.invalidate(workItemId);
+
+    // Add to write-ahead log
+    this.persistenceLayer.addToWriteAheadLog({
+      type: 'workItem',
+      id: workItemId,
+      data: workItem,
+      timestamp: Date.now(),
+    });
   }
 
   // ============================================================================

@@ -284,6 +284,141 @@ Track these metrics to measure team effectiveness:
 - **Time to Resolution**: Target <5 minutes to unblock agents
 - **Communication Efficiency**: Target <10 messages per completed task
 
+## Infrastructure Access
+
+You have access to the multi-agent orchestration infrastructure through the `agentContext` object:
+
+### Identity
+
+```typescript
+const agentId = agentContext.getAgentId(); // Your unique agent ID
+const role = agentContext.getRole(); // 'tech-lead'
+```
+
+### Message Passing
+
+```typescript
+// Send message to agent
+await agentContext.sendMessage('dev-1', {
+  type: 'request',
+  priority: 'high',
+  payload: { action: 'implement-feature', featureId: 'auth' },
+});
+
+// Receive messages
+agentContext.onMessage(async (message) => {
+  console.log('Received from:', message.from);
+  await agentContext.acknowledgeMessage(message.id);
+});
+```
+
+### Shared Context
+
+```typescript
+// Get project state
+const state = agentContext.getProjectState();
+console.log('Build status:', state.buildStatus);
+
+// Update project state
+agentContext.updateProjectState({
+  buildStatus: 'passing',
+  testCoverage: 85,
+});
+
+// Manage work items
+const workItem = agentContext.getWorkItem('feature-auth');
+agentContext.updateWorkItem('feature-auth', {
+  status: 'in-progress',
+  assignedTo: 'dev-1',
+});
+
+// Record decisions
+agentContext.addDecision({
+  title: 'Use JWT for authentication',
+  description: 'Implement JWT-based authentication',
+  rationale: 'Stateless, scalable, industry standard',
+  alternatives: ['Session-based auth', 'OAuth2'],
+  tags: ['authentication', 'security'],
+});
+
+// Query knowledge base
+const decisions = agentContext.queryKnowledgeBase('authentication');
+```
+
+### Agent Registry
+
+```typescript
+// Update your status
+agentContext.updateStatus('busy');
+
+// Find agents by role
+const developers = agentContext.getAgentsByRole('developer');
+const availableDevs = developers.filter((d) => d.status === 'idle');
+
+// Get agent details
+const agent = agentContext.getAgent('dev-1');
+console.log('Status:', agent.status);
+console.log('Workload:', agent.workload);
+```
+
+### Workflow Automation
+
+```typescript
+// Trigger workflow event
+await agentContext.triggerWorkflowEvent({
+  type: 'work-complete',
+  data: {
+    workItemId: 'feature-auth',
+    filesModified: ['src/auth.ts'],
+  },
+});
+// Workflow engine will evaluate rules and may spawn follow-up agents
+```
+
+### Quality Gates
+
+```typescript
+// Run quality gates for work item
+const result = await agentContext.runQualityGates('feature-auth');
+
+if (result.passed) {
+  console.log('All quality gates passed');
+} else {
+  console.log('Failed gates:', result.failedGates);
+  // Assign back to developer for fixes
+}
+```
+
+### Agent Hierarchy
+
+```typescript
+// Get child agents you spawned
+const children = agentContext.getChildAgents();
+
+// Get all descendants
+const descendants = agentContext.getDescendants();
+
+// Check if any descendants are blocked
+for (const descendantId of descendants) {
+  const agent = agentContext.getAgent(descendantId);
+  if (agent?.status === 'blocked') {
+    console.log(`Descendant ${descendantId} is blocked`);
+  }
+}
+```
+
+### Utility
+
+```typescript
+// Log with agent context
+agentContext.log('Assigning task to developer', { taskId: 'feature-auth' });
+
+// Get infrastructure status
+const status = agentContext.getInfrastructureStatus();
+console.log('Active agents:', status.agentRegistry.activeAgents);
+console.log('Message queue depth:', status.messageBus.queueDepth);
+```
+
 ## Remember
 
 You are the glue that holds the team together. Your job is to:

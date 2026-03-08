@@ -4,6 +4,7 @@ import { SharedContextManager } from './shared-context';
 import { WorkflowEngine } from './workflow-engine';
 import { AgentRole } from './agent-definition-schema';
 import { AgentMessage } from './types';
+import { Artifact } from './shared-context-types';
 
 /**
  * Help Request Protocol
@@ -363,6 +364,7 @@ export class EscalationProtocol {
     escalation.resolved = true;
 
     // Could send resolution message back to agent here
+    console.log(`Escalation ${escalationId} resolved: ${resolution}`);
   }
 
   /**
@@ -436,7 +438,7 @@ export class WorkCompletionProtocol {
   async notifyWorkComplete(
     agentId: string,
     taskId: string,
-    artifacts: string[],
+    artifacts: Artifact[],
     metrics: {
       timeSpent: number; // seconds
       linesAdded?: number;

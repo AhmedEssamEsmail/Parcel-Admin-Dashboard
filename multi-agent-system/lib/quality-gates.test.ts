@@ -204,7 +204,10 @@ describe('QualityGatesSystem', () => {
       assignedTo: 'dev-1',
       status: 'in-progress',
       dependencies: [],
-      artifacts: ['file1.ts', 'file2.ts'],
+      artifacts: [
+        { type: 'file', data: 'file1.ts' },
+        { type: 'file', data: 'file2.ts' },
+      ],
       timeSpent: 0,
     };
 

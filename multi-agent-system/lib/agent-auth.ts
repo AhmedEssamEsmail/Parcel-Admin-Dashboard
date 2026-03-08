@@ -5,6 +5,7 @@
  * Each agent receives a JWT token on spawn containing their identity, role, and capabilities.
  */
 
+import crypto from 'crypto';
 import { AgentRole } from './agent-definition-schema';
 import type { Agent } from './agent-registry';
 
@@ -121,6 +122,15 @@ export class AgentAuth {
   private readonly TOKEN_EXPIRATION_HOURS = 24;
   private readonly SECRET_KEY = this.generateSecretKey();
   private denials: AuthorizationDenial[] = [];
+  private silentMode = false;
+
+  /**
+   * Enable or disable silent mode (suppresses console warnings)
+   * Useful for testing to reduce noise
+   */
+  setSilentMode(silent: boolean): void {
+    this.silentMode = silent;
+  }
 
   /**
    * Generate a secret key for JWT signing
@@ -243,10 +253,12 @@ export class AgentAuth {
 
     this.denials.push(denial);
 
-    // Log to console for visibility
-    console.warn(
-      `[AgentAuth] Authorization denied: Agent ${agentId} (${role}) attempted ${action}. Reason: ${reason}`
-    );
+    // Log to console for visibility (unless in silent mode)
+    if (!this.silentMode) {
+      console.warn(
+        `[AgentAuth] Authorization denied: Agent ${agentId} (${role}) attempted ${action}. Reason: ${reason}`
+      );
+    }
 
     // Keep only last 1000 denials to prevent memory issues
     if (this.denials.length > 1000) {
@@ -295,7 +307,6 @@ export class AgentAuth {
    * Sign a message using HMAC-SHA256
    */
   private sign(message: string): string {
-    const crypto = require('crypto');
     const hmac = crypto.createHmac('sha256', this.SECRET_KEY);
     hmac.update(message);
     const signature = hmac.digest('base64');

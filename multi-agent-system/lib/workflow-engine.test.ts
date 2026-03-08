@@ -12,7 +12,8 @@ describe('WorkflowEngine', () => {
   let agentRegistry: AgentRegistry;
 
   beforeEach(async () => {
-    messageBus = new MessageBus();
+    // Use fast retries for tests (10ms instead of 1000ms)
+    messageBus = new MessageBus({ maxRetries: 3, baseRetryDelay: 10 });
     agentRegistry = new AgentRegistry();
     await agentRegistry.initialize();
     workflowEngine = new WorkflowEngine(messageBus, agentRegistry);
@@ -119,7 +120,14 @@ describe('WorkflowEngine', () => {
         source: 'dev-1',
         data: {
           taskId: 'task-1',
-          qualityGateResults: { passed: true },
+          qualityGateResults: {
+            workItemId: 'task-1',
+            passed: true,
+            results: [],
+            overrides: [],
+            generatedAt: new Date(),
+            totalDuration: 0,
+          },
         },
         timestamp: new Date(),
       };
@@ -157,7 +165,14 @@ describe('WorkflowEngine', () => {
         source: 'dev-1',
         data: {
           taskId: 'task-1',
-          qualityGateResults: { passed: false },
+          qualityGateResults: {
+            workItemId: 'task-1',
+            passed: false,
+            results: [],
+            overrides: [],
+            generatedAt: new Date(),
+            totalDuration: 0,
+          },
         },
         timestamp: new Date(),
       };
@@ -241,7 +256,14 @@ describe('WorkflowEngine', () => {
         type: 'feature-complete',
         source: 'dev-1',
         data: {
-          qualityGateResults: { passed: true },
+          qualityGateResults: {
+            workItemId: 'test-work-item',
+            passed: true,
+            results: [],
+            overrides: [],
+            generatedAt: new Date(),
+            totalDuration: 0,
+          },
         },
         timestamp: new Date(),
       };
@@ -274,7 +296,14 @@ describe('WorkflowEngine', () => {
         data: {
           taskId: 'task-1',
           files: ['app/feature.ts'],
-          qualityGateResults: { passed: true },
+          qualityGateResults: {
+            workItemId: 'task-1',
+            passed: true,
+            results: [],
+            overrides: [],
+            generatedAt: new Date(),
+            totalDuration: 0,
+          },
         },
         timestamp: new Date(),
       };
@@ -311,7 +340,7 @@ describe('WorkflowEngine', () => {
           taskId: 'task-1',
           testResults: {
             passed: false,
-            failures: ['Login test failed'],
+            failures: [{ test: 'Login test', error: 'Login test failed' }],
           },
         },
         timestamp: new Date(),
@@ -418,8 +447,25 @@ describe('WorkflowEngine', () => {
         data: {
           taskId: 'task-1',
           qualityGateResults: {
+            workItemId: 'task-1',
             passed: false,
-            failedGates: ['lint-check', 'type-check'],
+            results: [
+              {
+                gateId: 'lint-check',
+                passed: false,
+                message: 'Linting failed',
+                executedAt: new Date(),
+              },
+              {
+                gateId: 'type-check',
+                passed: false,
+                message: 'Type checking failed',
+                executedAt: new Date(),
+              },
+            ],
+            overrides: [],
+            generatedAt: new Date(),
+            totalDuration: 0,
           },
         },
         timestamp: new Date(),

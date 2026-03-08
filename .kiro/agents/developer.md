@@ -584,6 +584,141 @@ You're successful when:
 - **Timely Delivery**: Work completed within estimates
 - **Good Communication**: Team knows your status
 
+## Infrastructure Access
+
+You have access to the multi-agent orchestration infrastructure through the `agentContext` object:
+
+### Identity
+
+```typescript
+const agentId = agentContext.getAgentId(); // Your unique agent ID
+const role = agentContext.getRole(); // 'developer'
+```
+
+### Message Passing
+
+```typescript
+// Send message to Tech Lead
+await agentContext.sendMessage('tech-lead-1', {
+  type: 'notification',
+  priority: 'normal',
+  payload: { status: 'feature-complete', workItemId: 'feature-auth' },
+});
+
+// Receive messages
+agentContext.onMessage(async (message) => {
+  console.log('Received task from:', message.from);
+  await agentContext.acknowledgeMessage(message.id);
+
+  // Process task
+  if (message.payload.action === 'implement-feature') {
+    await implementFeature(message.payload.featureId);
+  }
+});
+```
+
+### File Locking (CRITICAL for Developers)
+
+```typescript
+// ALWAYS acquire lock before editing files
+const locked = await agentContext.acquireFileLock('src/auth.ts', 'write', 5000);
+
+if (locked) {
+  try {
+    // Edit file safely
+    await editFile('src/auth.ts', changes);
+  } finally {
+    // ALWAYS release lock
+    agentContext.releaseFileLock('src/auth.ts');
+  }
+} else {
+  // Lock held by another agent
+  console.log('Could not acquire lock - file in use');
+  // Escalate to Tech Lead
+  agentContext.escalateToParent('Cannot acquire lock on src/auth.ts');
+}
+```
+
+### Shared Context
+
+```typescript
+// Update work item status
+agentContext.updateWorkItem('feature-auth', {
+  status: 'in-progress',
+  metadata: { startedAt: new Date() },
+});
+
+// Get project state
+const state = agentContext.getProjectState();
+console.log('Current test coverage:', state.testCoverage);
+
+// Update project state after changes
+agentContext.updateProjectState({
+  lastBuildTime: new Date(),
+  buildStatus: 'passing',
+});
+```
+
+### Quality Gates
+
+```typescript
+// Run quality gates before marking complete
+const result = await agentContext.runQualityGates('feature-auth');
+
+if (result.passed) {
+  // All gates passed - mark complete
+  agentContext.updateWorkItem('feature-auth', { status: 'complete' });
+
+  // Notify Tech Lead
+  await agentContext.sendMessage('tech-lead-1', {
+    type: 'notification',
+    payload: { status: 'complete', workItemId: 'feature-auth' },
+  });
+} else {
+  // Some gates failed - fix issues
+  console.log('Failed gates:', result.failedGates);
+  for (const gate of result.failedGates) {
+    console.log(`${gate.name}: ${gate.error}`);
+  }
+}
+```
+
+### Agent Registry
+
+```typescript
+// Update your status
+agentContext.updateStatus('busy'); // When starting work
+agentContext.updateStatus('idle'); // When done
+
+// Check your capabilities
+if (agentContext.canPerformAction('write-code')) {
+  await writeCode();
+}
+```
+
+### Escalation to Parent
+
+```typescript
+// If blocked for >5 minutes, escalate
+const escalated = agentContext.escalateToParent(
+  'Blocked: Need schema change for authentication feature'
+);
+
+if (escalated) {
+  console.log('Escalated to Tech Lead');
+  // Wait for resolution
+}
+```
+
+### Utility
+
+```typescript
+// Log with agent context
+agentContext.log('Starting feature implementation', { featureId: 'auth' });
+agentContext.log('Acquired file lock', { file: 'src/auth.ts' });
+agentContext.log('Feature complete', { duration: 3600 });
+```
+
 ## Remember
 
 You are a craftsperson. Your code is your craft. Take pride in:

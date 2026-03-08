@@ -5,7 +5,7 @@
  * and quality gate timeout handling.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { ErrorRecoverySystem } from './error-recovery';
 import { AgentRegistry } from './agent-registry';
 import { MessageBus } from './message-bus';
@@ -27,7 +27,8 @@ describe('ErrorRecoverySystem', () => {
     registry = new AgentRegistry();
     await registry.initialize();
 
-    messageBus = new MessageBus();
+    // Use fast retries for tests (10ms instead of 1000ms)
+    messageBus = new MessageBus({ maxRetries: 3, baseRetryDelay: 10 });
     sharedContext = new SharedContextManager();
     coordinator = new TechLeadCoordinator(registry, messageBus, sharedContext);
 
@@ -459,7 +460,8 @@ describe('MessageBus - Delivery Failure Handling', () => {
   let messageBus: MessageBus;
 
   beforeEach(() => {
-    messageBus = new MessageBus();
+    // Use fast retries for tests (10ms instead of 1000ms)
+    messageBus = new MessageBus({ maxRetries: 3, baseRetryDelay: 10 });
   });
 
   afterEach(() => {

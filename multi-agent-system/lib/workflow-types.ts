@@ -1,4 +1,5 @@
 import { AgentRole } from './agent-definition-schema';
+import type { QualityGateReport } from './quality-gates-types';
 
 /**
  * Workflow rule definition
@@ -35,8 +36,8 @@ export interface WorkflowEvent {
   /** Event type identifier */
   type: string;
 
-  /** Agent ID that generated the event */
-  source: string;
+  /** Agent ID that generated the event (optional) */
+  source?: string;
 
   /** Event-specific data */
   data: WorkflowEventData;
@@ -62,15 +63,11 @@ export interface WorkflowEventData {
   testResults?: {
     passed: boolean;
     coverage?: number;
-    failures?: string[];
+    failures?: Array<{ test: string; error: string }>;
   };
 
   /** Quality gate results if event is quality-related */
-  qualityGateResults?: {
-    passed: boolean;
-    failedGates?: string[];
-    details?: unknown;
-  };
+  qualityGateResults?: QualityGateReport;
 
   /** Schema changes if event is database-related */
   schemaChanges?: {

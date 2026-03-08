@@ -211,10 +211,6 @@ describe('SharedContextManager - Performance Optimizations', () => {
       // Update state
       manager.updateProjectState({ currentPhase: 'updated' });
 
-      // Read with strong consistency before batch processes
-      // Note: batch hasn't processed yet, so source is still old
-      const stateBefore = manager.getProjectState('strong');
-
       // Process batch
       vi.advanceTimersByTime(50);
 

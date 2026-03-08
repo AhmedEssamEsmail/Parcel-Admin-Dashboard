@@ -70,7 +70,7 @@ export class ConflictResolver {
    * Register a file access request and check for conflicts
    */
   async registerFileAccess(request: FileAccessRequest): Promise<Conflict | null> {
-    const { filePath, agentId, lockType, lineRange } = request;
+    const { filePath, agentId } = request;
 
     // Get existing requests for this file
     const existingRequests = this.fileAccessRequests.get(filePath) || [];

@@ -9,7 +9,8 @@ describe('Integration: Basic Agent Communication', () => {
   let registry: AgentRegistry;
 
   beforeEach(async () => {
-    messageBus = new MessageBus();
+    // Use fast retries for tests (10ms instead of 1000ms)
+    messageBus = new MessageBus({ maxRetries: 3, baseRetryDelay: 10 });
     registry = new AgentRegistry();
     await registry.initialize();
   });
@@ -150,7 +151,7 @@ describe('Integration: Basic Agent Communication', () => {
 
     const receivedOrder: string[] = [];
     let processing = false;
-    let resolveProcessing: (() => void) | null = null;
+    let resolveProcessing: (() => void) | undefined;
 
     // Handler that blocks to allow messages to queue
     messageBus.subscribe(receiverId, async (msg) => {

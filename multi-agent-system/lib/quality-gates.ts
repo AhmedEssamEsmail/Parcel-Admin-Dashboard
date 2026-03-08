@@ -10,6 +10,7 @@ import { WorkItem } from './shared-context-types';
 import { AgentRole } from './agent-definition-schema';
 import { createHash } from 'crypto';
 import { existsSync, readFileSync } from 'fs';
+import { getLogger } from './logger';
 
 /**
  * Semaphore for limiting concurrent gate execution
@@ -134,7 +135,12 @@ export class QualityGatesSystem {
    */
   private getFileHashes(workItem: WorkItem, files?: string[]): string[] {
     const hashes: string[] = [];
-    const filesToHash = files || workItem.artifacts || [];
+    // Extract file paths from artifacts (artifacts with type 'file')
+    const artifactFiles =
+      workItem.artifacts
+        ?.filter((artifact) => artifact.type === 'file' && typeof artifact.data === 'string')
+        .map((artifact) => artifact.data as string) || [];
+    const filesToHash = files || artifactFiles;
 
     for (const filePath of filesToHash) {
       // Always compute fresh hash (don't use cached hash for file change detection)
@@ -282,8 +288,18 @@ export class QualityGatesSystem {
    * @returns Report with all gate results
    */
   async runGates(workItem: WorkItem, role: AgentRole): Promise<QualityGateReport> {
+    const logger = getLogger();
+    const correlationId = logger.generateCorrelationId();
     const startTime = Date.now();
     const applicableGates = this.getGatesForRole(role);
+
+    logger.logQualityGates(
+      workItem.assignedTo || 'unknown',
+      applicableGates.length,
+      undefined,
+      undefined,
+      correlationId
+    );
 
     if (applicableGates.length === 0) {
       return {
@@ -319,6 +335,19 @@ export class QualityGatesSystem {
     const unovrriddenFailures = failedResults.filter((r) => !overriddenGateIds.has(r.gateId));
 
     const passed = unovrriddenFailures.length === 0;
+    const totalDuration = Date.now() - startTime;
+
+    // Log completion
+    logger.logQualityGates(
+      workItem.assignedTo || 'unknown',
+      applicableGates.length,
+      {
+        passed: results.filter((r) => r.passed).length,
+        failed: failedResults.length,
+      },
+      totalDuration,
+      correlationId
+    );
 
     return {
       workItemId: workItem.id,
@@ -326,7 +355,7 @@ export class QualityGatesSystem {
       results,
       overrides: workItemOverrides,
       generatedAt: new Date(),
-      totalDuration: Date.now() - startTime,
+      totalDuration,
     };
   }
 
@@ -379,6 +408,7 @@ export class QualityGatesSystem {
    * @returns Gate result
    */
   private async runSingleGate(gate: QualityGate, workItem: WorkItem): Promise<GateResult> {
+    const logger = getLogger();
     const startTime = Date.now();
     let gateProcess: AbortController | undefined;
 
@@ -423,10 +453,29 @@ export class QualityGatesSystem {
 
       // Log timeout for analysis
       if (isTimeout) {
-        console.error(
-          `[QualityGate] Gate '${gate.id}' timed out after ${gate.timeout}ms for work item ${workItem.id}`
+        logger.error(
+          'QualityGates',
+          `Gate '${gate.id}' timed out after ${gate.timeout}ms for work item ${workItem.id}`,
+          error,
+          {
+            gateId: gate.id,
+            workItemId: workItem.id,
+            timeout: gate.timeout,
+            duration,
+          }
         );
         this.logTimeout(gate.id, workItem.id, duration);
+      } else {
+        logger.error(
+          'QualityGates',
+          `Gate '${gate.id}' failed for work item ${workItem.id}`,
+          error,
+          {
+            gateId: gate.id,
+            workItemId: workItem.id,
+            duration,
+          }
+        );
       }
 
       return {

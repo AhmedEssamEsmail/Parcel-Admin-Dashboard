@@ -325,7 +325,7 @@ export class ErrorRecoverySystem {
       if (workItem.status === 'in-progress') {
         // Add note about failure
         const note = `Work preserved after agent ${agentId} failure at ${new Date().toISOString()}`;
-        const updatedArtifacts = [...workItem.artifacts, note];
+        const updatedArtifacts = [...workItem.artifacts, { type: 'recovery-note', data: note }];
 
         this.sharedContext.updateWorkItem(workItem.id, {
           artifacts: updatedArtifacts,

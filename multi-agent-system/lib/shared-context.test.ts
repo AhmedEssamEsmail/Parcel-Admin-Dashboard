@@ -567,12 +567,12 @@ describe('SharedContextManager', () => {
 
       manager.updateWorkItem('task-1', { status: 'in-progress' });
       manager.updateWorkItem('task-1', { timeSpent: 100 });
-      manager.updateWorkItem('task-1', { artifacts: ['file1.ts'] });
+      manager.updateWorkItem('task-1', { artifacts: [{ type: 'file', data: 'file1.ts' }] });
 
       const updated = manager.getWorkItem('task-1');
       expect(updated?.status).toBe('in-progress');
       expect(updated?.timeSpent).toBe(100);
-      expect(updated?.artifacts).toContain('file1.ts');
+      expect(updated?.artifacts[0].data).toBe('file1.ts');
     });
   });
 

@@ -1,6 +1,10 @@
 /**
  * Enhanced agent invocation system with role-based spawning,
  * hierarchical delegation, and shared context injection
+ *
+ * BUG FIXES:
+ * - Bug #3: Store sharedContext in AgentSession and return in getSpawnedAgent()
+ * - Bug #4: Integrate with AgentHierarchy to track parent-child relationships
  */
 
 import { AgentRegistry } from './agent-registry';
@@ -8,12 +12,19 @@ import { AgentDefinitionLoader } from './agent-definition-loader';
 import { MessageBus } from './message-bus';
 import { SharedContextManager } from './shared-context';
 import { AgentRole } from './agent-definition-schema';
+import { AgentHierarchy } from './agent-hierarchy';
+import { getLogger } from './logger';
 import {
   EnhancedInvocationParams,
   AgentInvocationResult,
   AgentEscalation,
   AgentSpawnConfig,
   AgentSession,
+  InvokeSubAgentParams,
+  InvokeSubAgentResult,
+  SpawnedAgentState,
+  OnCompleteCallback,
+  SharedContext,
 } from './agent-invocation-types';
 import { AgentMessage } from './types';
 
@@ -23,14 +34,223 @@ import { AgentMessage } from './types';
 export class AgentInvocationManager {
   private sessions: Map<string, AgentSession> = new Map();
   private nextAgentId = 1;
-  private agentHierarchy: Map<string, string[]> = new Map(); // parentId -> childIds[]
+  private agentHierarchy: Map<string, string[]> = new Map(); // parentId -> childIds[] (local fallback)
+  private hierarchyManager?: AgentHierarchy; // BUG FIX #4: Reference to AgentHierarchy
 
   constructor(
     private registry: AgentRegistry,
     private definitionLoader: AgentDefinitionLoader,
     private messageBus: MessageBus,
-    private sharedContext?: SharedContextManager
-  ) {}
+    private sharedContext?: SharedContextManager,
+    hierarchyManager?: AgentHierarchy
+  ) {
+    this.hierarchyManager = hierarchyManager;
+
+    // BUG FIX #2: Register message interception hooks
+    this.setupMessageHooks();
+  }
+
+  /**
+   * BUG FIX #2: Setup message interception hooks to catch outgoing messages from child agents
+   */
+  private setupMessageHooks(): void {
+    // Hook to intercept messages BEFORE they are sent
+    this.messageBus.setBeforeSendHook(async (message: AgentMessage) => {
+      const session = this.sessions.get(message.from);
+      if (!session) {
+        return; // Not a managed agent
+      }
+
+      // Call onMessage callback for all outgoing messages
+      if (session.callbacks.onMessage) {
+        await session.callbacks.onMessage(message);
+      }
+
+      // Call onEscalate callback for escalation messages
+      if (message.type === 'escalation' && session.callbacks.onEscalate) {
+        // Extract escalation data from message
+        const payload = message.payload as {
+          action?: string;
+          context?: {
+            escalation?: AgentEscalation;
+          };
+        };
+
+        if (payload.context?.escalation) {
+          await session.callbacks.onEscalate(payload.context.escalation);
+        }
+      }
+    });
+  }
+
+  /**
+   * Set the AgentHierarchy manager (called by InfrastructureManager)
+   * BUG FIX #4: Allow setting hierarchy manager after construction
+   */
+  setHierarchyManager(hierarchyManager: AgentHierarchy): void {
+    this.hierarchyManager = hierarchyManager;
+  }
+
+  /**
+   * Invoke a sub-agent (backward compatible method name)
+   */
+  async invokeSubAgent(params: InvokeSubAgentParams): Promise<InvokeSubAgentResult> {
+    const logger = getLogger();
+    const correlationId = logger.generateCorrelationId();
+
+    try {
+      // Load agent definition
+      const definition = await this.definitionLoader.loadDefinition(params.role);
+      if (!definition) {
+        logger.error(
+          'AgentSpawn',
+          `Agent definition not found for role: ${params.role}`,
+          undefined,
+          {
+            role: params.role,
+            correlationId,
+          }
+        );
+        return {
+          agentId: '',
+          role: params.role,
+          success: false,
+          error: `Agent definition not found for role: ${params.role}`,
+          spawnedAt: new Date(),
+        };
+      }
+
+      // Generate agent ID
+      const agentId = params.agentId || `${params.role}-${this.nextAgentId++}`;
+
+      // Log agent spawning
+      logger.logAgentSpawn(agentId, params.role, params.parentAgent, correlationId);
+
+      // Create spawn configuration
+      const spawnConfig: AgentSpawnConfig = {
+        agentId,
+        role: params.role,
+        parentAgentId: params.parentAgent,
+        systemPromptPath: definition.systemPromptPath,
+        capabilities: definition.capabilities,
+        toolPermissions: definition.toolPermissions,
+        fileAccessPatterns: definition.fileAccessPatterns,
+        canCommunicateWith: params.canCommunicateWith || [],
+        sharedContext: params.sharedContext,
+      };
+
+      // Create enhanced params for spawning
+      const enhancedParams: EnhancedInvocationParams = {
+        role: params.role,
+        prompt: params.task || '',
+        parentAgentId: params.parentAgent,
+        canCommunicateWith: params.canCommunicateWith,
+        sharedContext: params.sharedContext,
+        onMessage: params.onMessage,
+        onComplete: params.onComplete,
+        onEscalate: params.onEscalate,
+        timeout: params.timeout,
+      };
+
+      // Spawn the agent
+      const session = await this.spawnAgent(spawnConfig, enhancedParams);
+
+      // Set up timeout if specified
+      if (params.timeout) {
+        session.timeoutHandle = setTimeout(() => {
+          this.handleTimeout(agentId);
+        }, params.timeout);
+      }
+
+      // Register agent in registry
+      this.registry.registerAgent({
+        id: agentId,
+        role: params.role,
+        status: 'busy',
+        capabilities: definition.capabilities,
+        canRequestHelpFrom: definition.canRequestHelpFrom,
+        workload: 1,
+      });
+
+      // BUG FIX #4: Track hierarchical relationship
+      if (params.parentAgent) {
+        // Use local hierarchy map for backward compatibility
+        this.addToHierarchy(params.parentAgent, agentId);
+
+        // BUG FIX #4: Also record in AgentHierarchy manager if available
+        if (this.hierarchyManager) {
+          this.hierarchyManager.recordRelationship(agentId, params.parentAgent);
+          logger.debug(
+            'AgentHierarchy',
+            `Recorded hierarchy: ${agentId} -> parent: ${params.parentAgent}`,
+            {
+              agentId,
+              parentId: params.parentAgent,
+              correlationId,
+            }
+          );
+        }
+      } else if (this.hierarchyManager) {
+        // Root agent (no parent)
+        this.hierarchyManager.recordRelationship(agentId, null);
+        logger.debug('AgentHierarchy', `Recorded hierarchy: ${agentId} -> ROOT`, {
+          agentId,
+          correlationId,
+        });
+      }
+
+      // Subscribe to messages for this agent
+      this.messageBus.subscribe(agentId, async (message) => {
+        await this.handleMessage(agentId, message);
+      });
+
+      // Send initial task message if provided
+      if (params.task) {
+        await this.messageBus.send({
+          id: `msg-${Date.now()}`,
+          from: params.parentAgent || 'system',
+          to: agentId,
+          type: 'request',
+          priority: 'high',
+          payload: {
+            action: 'execute-task',
+            context: {
+              prompt: params.task,
+            },
+          },
+          timestamp: new Date(),
+          acknowledged: false,
+        });
+      }
+
+      logger.info('AgentSpawn', `Successfully spawned ${agentId}`, {
+        agentId,
+        role: params.role,
+        parentId: params.parentAgent,
+        correlationId,
+      });
+
+      return {
+        agentId,
+        role: params.role,
+        success: true,
+        spawnedAt: new Date(),
+      };
+    } catch (error) {
+      logger.logError('AgentSpawn', 'Failed to spawn agent', error, {
+        role: params.role,
+        parentAgent: params.parentAgent,
+        correlationId,
+      });
+      return {
+        agentId: '',
+        role: params.role,
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        spawnedAt: new Date(),
+      };
+    }
+  }
 
   /**
    * Invoke a sub-agent with enhanced capabilities
@@ -78,9 +298,22 @@ export class AgentInvocationManager {
       workload: 1,
     });
 
-    // Task 14.3: Track hierarchical relationship
+    // BUG FIX #4: Track hierarchical relationship
     if (params.parentAgentId) {
+      // Use local hierarchy map for backward compatibility
       this.addToHierarchy(params.parentAgentId, agentId);
+
+      // BUG FIX #4: Also record in AgentHierarchy manager if available
+      if (this.hierarchyManager) {
+        this.hierarchyManager.recordRelationship(agentId, params.parentAgentId);
+        console.log(
+          `[AgentInvocation] Recorded hierarchy: ${agentId} -> parent: ${params.parentAgentId}`
+        );
+      }
+    } else if (this.hierarchyManager) {
+      // Root agent (no parent)
+      this.hierarchyManager.recordRelationship(agentId, null);
+      console.log(`[AgentInvocation] Recorded hierarchy: ${agentId} -> ROOT`);
     }
 
     // Subscribe to messages for this agent
@@ -108,7 +341,7 @@ export class AgentInvocationManager {
 
     // Wait for completion (in real implementation, this would be async)
     // For now, return a promise that resolves when the agent completes
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const checkInterval = setInterval(() => {
         const currentSession = this.sessions.get(agentId);
         if (currentSession?.status === 'completed' || currentSession?.status === 'failed') {
@@ -129,6 +362,7 @@ export class AgentInvocationManager {
               escalations: currentSession.metrics.escalations,
             },
             completedAt: new Date(),
+            timestamp: new Date(),
           };
 
           resolve(result);
@@ -144,6 +378,7 @@ export class AgentInvocationManager {
     config: AgentSpawnConfig,
     params: EnhancedInvocationParams
   ): Promise<AgentSession> {
+    // BUG FIX #3: Store sharedContext in session
     const session: AgentSession = {
       agentId: config.agentId!,
       role: config.role,
@@ -160,6 +395,7 @@ export class AgentInvocationManager {
         messagesSent: 0,
         escalations: 0,
       },
+      sharedContext: config.sharedContext, // BUG FIX #3: Store sharedContext
     };
 
     this.sessions.set(config.agentId!, session);
@@ -186,8 +422,14 @@ export class AgentInvocationManager {
   private async injectSharedContext(
     agentId: string,
     role: AgentRole,
-    contextManager: SharedContextManager
+    context: SharedContextManager | SharedContext | unknown
   ): Promise<void> {
+    // Only process if it's a SharedContextManager
+    if (!context || typeof context !== 'object' || !('getWorkItem' in context)) {
+      // Not a SharedContextManager, skip injection
+      return;
+    }
+
     // Get agent definition to check capabilities
     const definition = await this.definitionLoader.loadDefinition(role);
     if (!definition) {
@@ -238,16 +480,29 @@ export class AgentInvocationManager {
   /**
    * Get child agents of a parent
    * Task 14.3: Hierarchical delegation
+   * BUG FIX #4: Use AgentHierarchy manager if available
    */
   getChildAgents(parentId: string): string[] {
+    // BUG FIX #4: Use AgentHierarchy manager if available
+    if (this.hierarchyManager) {
+      return this.hierarchyManager.getChildAgents(parentId);
+    }
+    // Fallback to local hierarchy map
     return this.agentHierarchy.get(parentId) || [];
   }
 
   /**
    * Get parent agent of a child
    * Task 14.3: Hierarchical delegation
+   * BUG FIX #4: Use AgentHierarchy manager if available
    */
   getParentAgent(childId: string): string | undefined {
+    // BUG FIX #4: Use AgentHierarchy manager if available
+    if (this.hierarchyManager) {
+      const parent = this.hierarchyManager.getParentAgent(childId);
+      return parent ?? undefined;
+    }
+    // Fallback to session data
     const session = this.sessions.get(childId);
     return session?.parentAgentId;
   }
@@ -256,8 +511,13 @@ export class AgentInvocationManager {
    * Get all agents in hierarchy tree
    * Task 14.3: Hierarchical delegation
    */
-  getAgentHierarchy(rootId: string): { agentId: string; children: any[] }[] {
-    const buildTree = (agentId: string): any => {
+  getAgentHierarchy(rootId: string): {
+    agentId: string;
+    children: Array<{ agentId: string; role?: AgentRole; children: unknown[] }>;
+  }[] {
+    type HierarchyNode = { agentId: string; role?: AgentRole; children: HierarchyNode[] };
+
+    const buildTree = (agentId: string): HierarchyNode => {
       const children = this.getChildAgents(agentId);
       return {
         agentId,
@@ -321,18 +581,38 @@ export class AgentInvocationManager {
 
     session.metrics.escalations++;
 
+    // Type guard for payload structure
+    interface EscalationPayload {
+      issue?: string;
+      recommendation?: string;
+      context?: {
+        issue?: string;
+        taskId?: string;
+        attemptedSolutions?: string[];
+        blockedSince?: Date;
+        impactedTasks?: string[];
+      };
+    }
+
+    const payload = message.payload as EscalationPayload;
+    const payloadContext = payload.context || {};
+
+    const issue = payload.issue || payloadContext.issue || 'Unknown issue';
     const escalation: AgentEscalation = {
       agentId,
       role: session.role,
-      reason: (message.payload.context as any)?.issue || 'Unknown issue',
+      reason: issue,
+      issue: issue, // Alias for backward compatibility
       context: {
-        taskId: (message.payload.context as any)?.taskId,
-        attemptedSolutions: (message.payload.context as any)?.attemptedSolutions || [],
-        blockedSince: (message.payload.context as any)?.blockedSince || new Date(),
-        impactedTasks: (message.payload.context as any)?.impactedTasks,
+        taskId: payloadContext.taskId,
+        attemptedSolutions: payloadContext.attemptedSolutions || [],
+        blockedSince: payloadContext.blockedSince || new Date(),
+        impactedTasks: payloadContext.impactedTasks,
+        recommendation: payload.recommendation,
       },
-      attemptedSolutions: (message.payload.context as any)?.attemptedSolutions || [],
+      attemptedSolutions: payloadContext.attemptedSolutions || [],
       severity: message.priority === 'critical' ? 'critical' : 'high',
+      recommendation: payload.recommendation,
       timestamp: new Date(),
     };
 
@@ -385,18 +665,26 @@ export class AgentInvocationManager {
 
     session.status = 'completed';
 
+    // Type guard for completion payload
+    interface CompletionPayloadContext {
+      artifacts?: string[];
+    }
+
+    const payloadContext = (message.payload.context || {}) as CompletionPayloadContext;
+
     const result: AgentInvocationResult = {
       agentId,
       role: session.role,
       success: true,
       result: message.payload.result,
-      artifacts: (message.payload.context as any)?.artifacts || [],
+      artifacts: payloadContext.artifacts || [],
       metrics: {
         timeSpent: Date.now() - session.startedAt.getTime(),
         messagesExchanged: session.metrics.messagesReceived + session.metrics.messagesSent,
         escalations: session.metrics.escalations,
       },
       completedAt: new Date(),
+      timestamp: new Date(),
     };
 
     // Call onComplete callback if provided
@@ -461,6 +749,7 @@ export class AgentInvocationManager {
           escalations: session.metrics.escalations,
         },
         completedAt: new Date(),
+        timestamp: new Date(),
       };
 
       session.callbacks.onComplete(result);
@@ -561,6 +850,7 @@ export class AgentInvocationManager {
   /**
    * Get hierarchy statistics
    * Task 14.3: Hierarchical delegation
+   * BUG FIX #4: Use AgentHierarchy manager if available
    */
   getHierarchyStats(): {
     totalAgents: number;
@@ -568,6 +858,18 @@ export class AgentInvocationManager {
     maxDepth: number;
     averageChildren: number;
   } {
+    // BUG FIX #4: Use AgentHierarchy manager if available
+    if (this.hierarchyManager) {
+      const stats = this.hierarchyManager.getHierarchyStats();
+      return {
+        totalAgents: stats.totalAgents,
+        rootAgents: stats.rootAgents,
+        maxDepth: stats.maxDepth,
+        averageChildren: stats.avgChildren, // Map avgChildren to averageChildren
+      };
+    }
+
+    // Fallback to local hierarchy calculation
     const allAgents = Array.from(this.sessions.keys());
     const rootAgents = allAgents.filter((id) => !this.getParentAgent(id));
 
@@ -595,5 +897,85 @@ export class AgentInvocationManager {
       maxDepth,
       averageChildren,
     };
+  }
+
+  /**
+   * Get a spawned agent by ID
+   * BUG FIX #3: Return sharedContext from session
+   */
+  getSpawnedAgent(agentId: string): SpawnedAgentState | undefined {
+    const session = this.sessions.get(agentId);
+    if (!session) {
+      return undefined;
+    }
+
+    // Convert callbacks - both types now use compatible result types
+    const callbacks: SpawnedAgentState['callbacks'] = {
+      onMessage: session.callbacks.onMessage,
+      onComplete: session.callbacks.onComplete as OnCompleteCallback | undefined,
+      onEscalate: session.callbacks.onEscalate,
+    };
+
+    // BUG FIX #3: Return sharedContext from session
+    return {
+      agentId: session.agentId,
+      role: session.role,
+      parentAgent: session.parentAgentId,
+      canCommunicateWith: session.canCommunicateWith || [], // BUG FIX #5: Return stored canCommunicateWith
+      sharedContext: session.sharedContext as SharedContext | undefined, // BUG FIX #3: Return stored sharedContext
+      callbacks,
+      timeout: undefined,
+      timeoutHandle: session.timeoutHandle,
+      spawnedAt: session.startedAt,
+      completedAt: session.status === 'completed' ? new Date() : undefined,
+      status: session.status,
+    };
+  }
+
+  /**
+   * Get all spawned agents
+   * BUG FIX #3: Return sharedContext from session
+   */
+  getAllSpawnedAgents(): SpawnedAgentState[] {
+    return Array.from(this.sessions.values()).map((session) => {
+      // Convert callbacks - both types now use compatible result types
+      const callbacks: SpawnedAgentState['callbacks'] = {
+        onMessage: session.callbacks.onMessage,
+        onComplete: session.callbacks.onComplete as OnCompleteCallback | undefined,
+        onEscalate: session.callbacks.onEscalate,
+      };
+
+      // BUG FIX #3: Return sharedContext from session
+      return {
+        agentId: session.agentId,
+        role: session.role,
+        parentAgent: session.parentAgentId,
+        canCommunicateWith: session.canCommunicateWith || [], // BUG FIX #5: Return stored canCommunicateWith
+        sharedContext: session.sharedContext as SharedContext | undefined, // BUG FIX #3: Return stored sharedContext
+        callbacks,
+        timeout: undefined,
+        timeoutHandle: session.timeoutHandle,
+        spawnedAt: session.startedAt,
+        completedAt: session.status === 'completed' ? new Date() : undefined,
+        status: session.status,
+      };
+    });
+  }
+
+  /**
+   * Clear all spawned agents
+   */
+  clear(): void {
+    // Clear all timeout handles
+    for (const session of this.sessions.values()) {
+      if (session.timeoutHandle) {
+        clearTimeout(session.timeoutHandle);
+      }
+    }
+
+    // Clear all data structures
+    this.sessions.clear();
+    this.agentHierarchy.clear();
+    this.nextAgentId = 1;
   }
 }

@@ -6,7 +6,8 @@ describe('MessageBus', () => {
   let messageBus: MessageBus;
 
   beforeEach(() => {
-    messageBus = new MessageBus();
+    // Use fast retries for tests (10ms instead of 1000ms)
+    messageBus = new MessageBus({ maxRetries: 3, baseRetryDelay: 10 });
   });
 
   afterEach(() => {

@@ -337,7 +337,7 @@ export class TechLeadCoordinator {
    * Escalates to parent agent if unable to resolve after 5 minutes
    */
   async handleEscalation(escalation: EscalationRequest): Promise<void> {
-    const { agentId, taskId, reason, attemptedSolutions, severity } = escalation;
+    const { agentId, taskId, reason, severity } = escalation;
 
     // Track escalation attempts
     const attempts = (this.escalationAttempts.get(taskId) || 0) + 1;

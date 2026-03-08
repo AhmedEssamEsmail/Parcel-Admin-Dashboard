@@ -24,7 +24,8 @@ describe('TechLeadCoordinator', () => {
   beforeEach(async () => {
     registry = new AgentRegistry();
     await registry.initialize();
-    messageBus = new MessageBus();
+    // Use fast retries for tests (10ms instead of 1000ms)
+    messageBus = new MessageBus({ maxRetries: 3, baseRetryDelay: 10 });
     sharedContext = new SharedContextManager();
     coordinator = new TechLeadCoordinator(registry, messageBus, sharedContext);
   });
@@ -276,7 +277,7 @@ describe('TechLeadCoordinator', () => {
     });
 
     it('should send assignment message to agent', async () => {
-      const messages: any[] = [];
+      const messages: AgentMessage[] = [];
       messageBus.subscribe('dev-1', async (msg) => {
         messages.push(msg);
       });
@@ -400,7 +401,7 @@ describe('TechLeadCoordinator', () => {
     });
 
     it('should send guidance for unclear requirements', async () => {
-      const messages: any[] = [];
+      const messages: AgentMessage[] = [];
       messageBus.subscribe('dev-1', async (msg) => {
         messages.push(msg);
       });
@@ -422,7 +423,7 @@ describe('TechLeadCoordinator', () => {
     });
 
     it('should escalate to parent for critical issues', async () => {
-      const messages: any[] = [];
+      const messages: AgentMessage[] = [];
       messageBus.subscribe('parent-agent', async (msg) => {
         messages.push(msg);
       });
@@ -445,7 +446,7 @@ describe('TechLeadCoordinator', () => {
     });
 
     it('should escalate to parent after 5 minutes', async () => {
-      const messages: any[] = [];
+      const messages: AgentMessage[] = [];
       messageBus.subscribe('parent-agent', async (msg) => {
         messages.push(msg);
       });
@@ -516,7 +517,7 @@ describe('TechLeadCoordinator', () => {
     });
 
     it('should request changes when quality gates fail', async () => {
-      const messages: any[] = [];
+      const messages: AgentMessage[] = [];
       messageBus.subscribe('dev-1', async (msg) => {
         messages.push(msg);
       });

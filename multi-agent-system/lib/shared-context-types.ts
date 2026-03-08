@@ -15,13 +15,18 @@ export interface FileLock {
   type: 'read' | 'write';
 }
 
+export interface Artifact {
+  type: string;
+  data: unknown;
+}
+
 export interface WorkItem {
   id: string;
   title: string;
   assignedTo: string;
   status: 'pending' | 'in-progress' | 'review' | 'blocked' | 'complete';
   dependencies: string[];
-  artifacts: string[];
+  artifacts: Artifact[];
   startedAt?: Date;
   completedAt?: Date;
   timeSpent: number;

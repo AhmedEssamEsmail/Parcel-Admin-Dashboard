@@ -12,6 +12,7 @@ describe('AgentAuth', () => {
 
   beforeEach(() => {
     agentAuth = new AgentAuth();
+    agentAuth.setSilentMode(true); // Suppress console warnings during tests
     agentAuth.clearDenials();
   });
 
@@ -22,8 +23,11 @@ describe('AgentAuth', () => {
         role: AgentRole.DEVELOPER,
         capabilities: ['write-code', 'fix-bugs'],
         status: 'idle',
-        currentTask: null,
-        lastHeartbeat: new Date(),
+        currentTask: undefined,
+        canRequestHelpFrom: [],
+        workload: 0,
+        lastActivity: new Date(),
+        createdAt: new Date(),
       };
 
       const token = agentAuth.generateToken(agent);
@@ -39,8 +43,11 @@ describe('AgentAuth', () => {
         role: AgentRole.QA_ENGINEER,
         capabilities: ['write-tests', 'run-tests'],
         status: 'idle',
-        currentTask: null,
-        lastHeartbeat: new Date(),
+        currentTask: undefined,
+        canRequestHelpFrom: [],
+        workload: 0,
+        lastActivity: new Date(),
+        createdAt: new Date(),
       };
 
       const token = agentAuth.generateToken(agent);
@@ -58,8 +65,11 @@ describe('AgentAuth', () => {
         role: AgentRole.TECH_LEAD,
         capabilities: ['assign-tasks'],
         status: 'idle',
-        currentTask: null,
-        lastHeartbeat: new Date(),
+        currentTask: undefined,
+        canRequestHelpFrom: [],
+        workload: 0,
+        lastActivity: new Date(),
+        createdAt: new Date(),
       };
 
       const token = agentAuth.generateToken(agent);
@@ -81,8 +91,11 @@ describe('AgentAuth', () => {
         role: AgentRole.DEVOPS,
         capabilities: ['deploy'],
         status: 'idle',
-        currentTask: null,
-        lastHeartbeat: new Date(),
+        currentTask: undefined,
+        canRequestHelpFrom: [],
+        workload: 0,
+        lastActivity: new Date(),
+        createdAt: new Date(),
       };
 
       const token = agentAuth.generateToken(agent);
@@ -98,8 +111,11 @@ describe('AgentAuth', () => {
         role: AgentRole.DEVELOPER,
         capabilities: ['write-code'],
         status: 'idle',
-        currentTask: null,
-        lastHeartbeat: new Date(),
+        currentTask: undefined,
+        canRequestHelpFrom: [],
+        workload: 0,
+        lastActivity: new Date(),
+        createdAt: new Date(),
       };
 
       const token = agentAuth.generateToken(agent);
@@ -169,8 +185,11 @@ describe('AgentAuth', () => {
         role: AgentRole.TECH_LEAD,
         capabilities: ['assign-tasks'],
         status: 'idle',
-        currentTask: null,
-        lastHeartbeat: new Date(),
+        currentTask: undefined,
+        canRequestHelpFrom: [],
+        workload: 0,
+        lastActivity: new Date(),
+        createdAt: new Date(),
       };
 
       const token = agentAuth.generateToken(agent);
@@ -190,8 +209,11 @@ describe('AgentAuth', () => {
         role: AgentRole.DEVELOPER,
         capabilities: ['write-code'],
         status: 'idle',
-        currentTask: null,
-        lastHeartbeat: new Date(),
+        currentTask: undefined,
+        canRequestHelpFrom: [],
+        workload: 0,
+        lastActivity: new Date(),
+        createdAt: new Date(),
       };
 
       const token = agentAuth.generateToken(agent);
@@ -286,8 +308,11 @@ describe('AgentAuth', () => {
         role: AgentRole.DEVELOPER,
         capabilities: ['write-code'],
         status: 'idle',
-        currentTask: null,
-        lastHeartbeat: new Date(),
+        currentTask: undefined,
+        canRequestHelpFrom: [],
+        workload: 0,
+        lastActivity: new Date(),
+        createdAt: new Date(),
       };
 
       const token = agentAuth.generateToken(agent);
@@ -313,8 +338,11 @@ describe('AgentAuth', () => {
         role: AgentRole.DEVELOPER,
         capabilities: ['write-code'],
         status: 'idle',
-        currentTask: null,
-        lastHeartbeat: new Date(),
+        currentTask: undefined,
+        canRequestHelpFrom: [],
+        workload: 0,
+        lastActivity: new Date(),
+        createdAt: new Date(),
       };
 
       const token = agentAuth.generateToken(agent);
@@ -336,8 +364,11 @@ describe('AgentAuth', () => {
         role: AgentRole.DEVELOPER,
         capabilities: ['write-code'],
         status: 'idle',
-        currentTask: null,
-        lastHeartbeat: new Date(),
+        currentTask: undefined,
+        canRequestHelpFrom: [],
+        workload: 0,
+        lastActivity: new Date(),
+        createdAt: new Date(),
       };
 
       const token = agentAuth.generateToken(agent);

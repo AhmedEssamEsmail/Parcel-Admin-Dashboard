@@ -14,12 +14,26 @@ import { SharedContextManager } from '@/multi-agent-system/lib/shared-context';
 import { WorkItem, KnowledgeItem } from '@/multi-agent-system/lib/shared-context-types';
 
 /**
+ * Enable verbose performance logging (set to true for debugging)
+ */
+const VERBOSE_LOGGING = false;
+
+/**
  * Calculate percentile from sorted array
  */
 function calculatePercentile(sortedValues: number[], percentile: number): number {
   if (sortedValues.length === 0) return 0;
   const index = Math.ceil((percentile / 100) * sortedValues.length) - 1;
   return sortedValues[Math.max(0, index)];
+}
+
+/**
+ * Log performance metrics only if verbose logging is enabled
+ */
+function logPerformance(message: string): void {
+  if (VERBOSE_LOGGING) {
+    console.log(message);
+  }
 }
 
 describe('Shared Context Performance', () => {
@@ -75,12 +89,12 @@ describe('Shared Context Performance', () => {
       const p99 = calculatePercentile(sortedLatencies, 99);
       const avg = latencies.reduce((a, b) => a + b, 0) / latencies.length;
 
-      console.log('\n=== Concurrent Read Performance ===');
-      console.log(`Total reads: ${concurrentReads}`);
-      console.log(`Average latency: ${avg.toFixed(2)}ms`);
-      console.log(`p50 latency: ${p50.toFixed(2)}ms`);
-      console.log(`p95 latency: ${p95.toFixed(2)}ms`);
-      console.log(`p99 latency: ${p99.toFixed(2)}ms`);
+      logPerformance('\n=== Concurrent Read Performance ===');
+      logPerformance(`Total reads: ${concurrentReads}`);
+      logPerformance(`Average latency: ${avg.toFixed(2)}ms`);
+      logPerformance(`p50 latency: ${p50.toFixed(2)}ms`);
+      logPerformance(`p95 latency: ${p95.toFixed(2)}ms`);
+      logPerformance(`p99 latency: ${p99.toFixed(2)}ms`);
 
       // Reads should be very fast (< 10ms p99)
       expect(p99).toBeLessThan(10);
@@ -115,11 +129,11 @@ describe('Shared Context Performance', () => {
       const p95 = calculatePercentile(sortedLatencies, 95);
       const p99 = calculatePercentile(sortedLatencies, 99);
 
-      console.log('\n=== Concurrent Write Performance ===');
-      console.log(`Total writes: ${concurrentWrites}`);
-      console.log(`p50 latency: ${p50.toFixed(2)}ms`);
-      console.log(`p95 latency: ${p95.toFixed(2)}ms`);
-      console.log(`p99 latency: ${p99.toFixed(2)}ms`);
+      logPerformance('\n=== Concurrent Write Performance ===');
+      logPerformance(`Total writes: ${concurrentWrites}`);
+      logPerformance(`p50 latency: ${p50.toFixed(2)}ms`);
+      logPerformance(`p95 latency: ${p95.toFixed(2)}ms`);
+      logPerformance(`p99 latency: ${p99.toFixed(2)}ms`);
 
       // Writes should complete quickly (< 100ms p99)
       expect(p99).toBeLessThan(100);
@@ -173,10 +187,10 @@ describe('Shared Context Performance', () => {
       const readP99 = calculatePercentile(sortedReadLatencies, 99);
       const writeP99 = calculatePercentile(sortedWriteLatencies, 99);
 
-      console.log('\n=== Mixed Read/Write Performance ===');
-      console.log(`Total operations: ${operations}`);
-      console.log(`Reads: ${readLatencies.length} (p99: ${readP99.toFixed(2)}ms)`);
-      console.log(`Writes: ${writeLatencies.length} (p99: ${writeP99.toFixed(2)}ms)`);
+      logPerformance('\n=== Mixed Read/Write Performance ===');
+      logPerformance(`Total operations: ${operations}`);
+      logPerformance(`Reads: ${readLatencies.length} (p99: ${readP99.toFixed(2)}ms)`);
+      logPerformance(`Writes: ${writeLatencies.length} (p99: ${writeP99.toFixed(2)}ms)`);
 
       // Both should meet performance targets
       expect(readP99).toBeLessThan(10);
@@ -209,11 +223,11 @@ describe('Shared Context Performance', () => {
       const p95 = calculatePercentile(sortedLatencies, 95);
       const p99 = calculatePercentile(sortedLatencies, 99);
 
-      console.log('\n=== Lock Acquisition Performance ===');
-      console.log(`Total locks: ${lockCount}`);
-      console.log(`p50 latency: ${p50.toFixed(2)}ms`);
-      console.log(`p95 latency: ${p95.toFixed(2)}ms`);
-      console.log(`p99 latency: ${p99.toFixed(2)}ms`);
+      logPerformance('\n=== Lock Acquisition Performance ===');
+      logPerformance(`Total locks: ${lockCount}`);
+      logPerformance(`p50 latency: ${p50.toFixed(2)}ms`);
+      logPerformance(`p95 latency: ${p95.toFixed(2)}ms`);
+      logPerformance(`p99 latency: ${p99.toFixed(2)}ms`);
 
       // Lock acquisition should be very fast (< 50ms p99)
       expect(p99).toBeLessThan(50);
@@ -251,10 +265,10 @@ describe('Shared Context Performance', () => {
       const successfulAttempts = attempts.filter((a) => a.acquired);
       const failedAttempts = attempts.filter((a) => !a.acquired);
 
-      console.log('\n=== Lock Contention Test ===');
-      console.log(`Total attempts: ${agentCount}`);
-      console.log(`Successful: ${successfulAttempts.length}`);
-      console.log(`Failed: ${failedAttempts.length}`);
+      logPerformance('\n=== Lock Contention Test ===');
+      logPerformance(`Total attempts: ${agentCount}`);
+      logPerformance(`Successful: ${successfulAttempts.length}`);
+      logPerformance(`Failed: ${failedAttempts.length}`);
 
       // At least one should succeed
       expect(successfulAttempts.length).toBeGreaterThan(0);
@@ -303,12 +317,12 @@ describe('Shared Context Performance', () => {
       const p99 = calculatePercentile(sortedLatencies, 99);
       const avg = latencies.reduce((a, b) => a + b, 0) / latencies.length;
 
-      console.log('\n=== High Volume Lock Operations ===');
-      console.log(`Total operations: ${operations}`);
-      console.log(`Agents: ${agentCount}`);
-      console.log(`Files: ${fileCount}`);
-      console.log(`Average latency: ${avg.toFixed(2)}ms`);
-      console.log(`p99 latency: ${p99.toFixed(2)}ms`);
+      logPerformance('\n=== High Volume Lock Operations ===');
+      logPerformance(`Total operations: ${operations}`);
+      logPerformance(`Agents: ${agentCount}`);
+      logPerformance(`Files: ${fileCount}`);
+      logPerformance(`Average latency: ${avg.toFixed(2)}ms`);
+      logPerformance(`p99 latency: ${p99.toFixed(2)}ms`);
 
       // Should handle high volume efficiently
       expect(p99).toBeLessThan(100);
@@ -360,10 +374,10 @@ describe('Shared Context Performance', () => {
         99
       );
 
-      console.log('\n=== Work Item Tracking Performance ===');
-      console.log(`Work items created: ${workItemCount}`);
-      console.log(`Create p99 latency: ${createP99.toFixed(2)}ms`);
-      console.log(`Query p99 latency: ${queryP99.toFixed(2)}ms`);
+      logPerformance('\n=== Work Item Tracking Performance ===');
+      logPerformance(`Work items created: ${workItemCount}`);
+      logPerformance(`Create p99 latency: ${createP99.toFixed(2)}ms`);
+      logPerformance(`Query p99 latency: ${queryP99.toFixed(2)}ms`);
 
       // Should handle large datasets efficiently
       expect(createP99).toBeLessThan(50);
@@ -410,10 +424,10 @@ describe('Shared Context Performance', () => {
         99
       );
 
-      console.log('\n=== Work Item Query Performance ===');
-      console.log(`Total work items: ${workItemCount}`);
-      console.log(`Queries: ${queryLatencies.length}`);
-      console.log(`p99 latency: ${p99.toFixed(2)}ms`);
+      logPerformance('\n=== Work Item Query Performance ===');
+      logPerformance(`Total work items: ${workItemCount}`);
+      logPerformance(`Queries: ${queryLatencies.length}`);
+      logPerformance(`p99 latency: ${p99.toFixed(2)}ms`);
 
       // Queries should be fast
       expect(p99).toBeLessThan(50);
@@ -467,10 +481,10 @@ describe('Shared Context Performance', () => {
         99
       );
 
-      console.log('\n=== Knowledge Base Performance ===');
-      console.log(`Knowledge items: ${itemCount}`);
-      console.log(`Add p99 latency: ${addP99.toFixed(2)}ms`);
-      console.log(`Query p99 latency: ${queryP99.toFixed(2)}ms`);
+      logPerformance('\n=== Knowledge Base Performance ===');
+      logPerformance(`Knowledge items: ${itemCount}`);
+      logPerformance(`Add p99 latency: ${addP99.toFixed(2)}ms`);
+      logPerformance(`Query p99 latency: ${queryP99.toFixed(2)}ms`);
 
       // Should handle large knowledge base
       expect(addP99).toBeLessThan(50);
@@ -521,9 +535,9 @@ describe('Shared Context Performance', () => {
         99
       );
 
-      console.log('\n=== Complex Query Performance ===');
-      console.log(`Queries: ${queryLatencies.length}`);
-      console.log(`p99 latency: ${p99.toFixed(2)}ms`);
+      logPerformance('\n=== Complex Query Performance ===');
+      logPerformance(`Queries: ${queryLatencies.length}`);
+      logPerformance(`p99 latency: ${p99.toFixed(2)}ms`);
 
       // Complex queries should still be fast
       expect(p99).toBeLessThan(150);
@@ -556,11 +570,11 @@ describe('Shared Context Performance', () => {
       const duration = Date.now() - startTime;
       const avgLatency = duration / updateCount;
 
-      console.log('\n=== State Change Notification Performance ===');
-      console.log(`Listeners: ${listenerCount}`);
-      console.log(`Updates: ${updateCount}`);
-      console.log(`Total duration: ${duration}ms`);
-      console.log(`Average latency per update: ${avgLatency.toFixed(2)}ms`);
+      logPerformance('\n=== State Change Notification Performance ===');
+      logPerformance(`Listeners: ${listenerCount}`);
+      logPerformance(`Updates: ${updateCount}`);
+      logPerformance(`Total duration: ${duration}ms`);
+      logPerformance(`Average latency per update: ${avgLatency.toFixed(2)}ms`);
 
       // All listeners should be notified
       notificationCounts.forEach((count) => {
@@ -607,7 +621,7 @@ describe('Shared Context Performance', () => {
         const roundLatency = Date.now() - startTime;
         roundLatencies.push(roundLatency);
 
-        console.log(`Round ${round + 1}: ${roundLatency}ms`);
+        logPerformance(`Round ${round + 1}: ${roundLatency}ms`);
       }
 
       // Calculate statistics
@@ -616,13 +630,13 @@ describe('Shared Context Performance', () => {
       const lastRound = roundLatencies[roundLatencies.length - 1];
       const degradation = ((lastRound - firstRound) / firstRound) * 100;
 
-      console.log('\n=== Sustained Load Performance ===');
-      console.log(`Rounds: ${rounds}`);
-      console.log(`Operations per round: ${operationsPerRound}`);
-      console.log(`Average round latency: ${avgLatency.toFixed(2)}ms`);
-      console.log(`First round: ${firstRound}ms`);
-      console.log(`Last round: ${lastRound}ms`);
-      console.log(`Performance degradation: ${degradation.toFixed(2)}%`);
+      logPerformance('\n=== Sustained Load Performance ===');
+      logPerformance(`Rounds: ${rounds}`);
+      logPerformance(`Operations per round: ${operationsPerRound}`);
+      logPerformance(`Average round latency: ${avgLatency.toFixed(2)}ms`);
+      logPerformance(`First round: ${firstRound}ms`);
+      logPerformance(`Last round: ${lastRound}ms`);
+      logPerformance(`Performance degradation: ${degradation.toFixed(2)}%`);
 
       // Performance should not degrade significantly
       expect(Math.abs(degradation)).toBeLessThan(50); // < 50% degradation

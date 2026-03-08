@@ -19,6 +19,7 @@ describe('Authorization Enforcement Integration Tests', () => {
   beforeEach(async () => {
     registry = new AgentRegistry();
     await registry.initialize();
+    registry.setSilentMode(true); // Suppress console warnings during tests
   });
 
   afterEach(() => {

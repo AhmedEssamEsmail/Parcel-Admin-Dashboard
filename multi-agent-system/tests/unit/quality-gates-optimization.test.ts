@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { QualityGatesSystem } from '@/multi-agent-system/lib/quality-gates';
-import { QualityGate, GateResult } from '@/multi-agent-system/lib/quality-gates-types';
+import { QualityGate } from '@/multi-agent-system/lib/quality-gates-types';
 import { WorkItem } from '@/multi-agent-system/lib/shared-context-types';
 import { AgentRole } from '@/multi-agent-system/lib/agent-definition-schema';
-import { writeFileSync, unlinkSync, mkdirSync, existsSync, rmSync } from 'fs';
+import { writeFileSync, mkdirSync, existsSync, rmSync } from 'fs';
 import { join } from 'path';
 
 describe('QualityGatesSystem - Optimizations', () => {
@@ -51,7 +51,7 @@ describe('QualityGatesSystem - Optimizations', () => {
         assignedTo: 'dev-1',
         status: 'in-progress',
         dependencies: [],
-        artifacts: [testFile],
+        artifacts: [{ type: 'file', data: testFile }],
         timeSpent: 0,
       };
 
@@ -89,7 +89,7 @@ describe('QualityGatesSystem - Optimizations', () => {
         assignedTo: 'dev-1',
         status: 'in-progress',
         dependencies: [],
-        artifacts: [testFile],
+        artifacts: [{ type: 'file', data: testFile }],
         timeSpent: 0,
       };
 
@@ -129,7 +129,7 @@ describe('QualityGatesSystem - Optimizations', () => {
         assignedTo: 'dev-1',
         status: 'in-progress',
         dependencies: [],
-        artifacts: [testFile],
+        artifacts: [{ type: 'file', data: testFile }],
         timeSpent: 0,
       };
 
@@ -169,7 +169,7 @@ describe('QualityGatesSystem - Optimizations', () => {
         assignedTo: 'dev-1',
         status: 'in-progress',
         dependencies: [],
-        artifacts: [testFile],
+        artifacts: [{ type: 'file', data: testFile }],
         timeSpent: 0,
       };
 
@@ -204,7 +204,7 @@ describe('QualityGatesSystem - Optimizations', () => {
         assignedTo: 'dev-1',
         status: 'in-progress',
         dependencies: [],
-        artifacts: [testFile],
+        artifacts: [{ type: 'file', data: testFile }],
         timeSpent: 0,
       };
 
@@ -255,7 +255,7 @@ describe('QualityGatesSystem - Optimizations', () => {
         assignedTo: 'dev-1',
         status: 'in-progress',
         dependencies: [],
-        artifacts: [testFile],
+        artifacts: [{ type: 'file', data: testFile }],
         timeSpent: 0,
       };
 
@@ -303,7 +303,7 @@ describe('QualityGatesSystem - Optimizations', () => {
         assignedTo: 'dev-1',
         status: 'in-progress',
         dependencies: [],
-        artifacts: [testFile],
+        artifacts: [{ type: 'file', data: testFile }],
         timeSpent: 0,
       };
 
@@ -336,7 +336,7 @@ describe('QualityGatesSystem - Optimizations', () => {
         assignedTo: 'dev-1',
         status: 'in-progress',
         dependencies: [],
-        artifacts: [nonExistentFile],
+        artifacts: [{ type: 'file', data: nonExistentFile }],
         timeSpent: 0,
       };
 
@@ -404,7 +404,7 @@ describe('QualityGatesSystem - Optimizations', () => {
         assignedTo: 'dev-1',
         status: 'in-progress',
         dependencies: [],
-        artifacts: [testFile],
+        artifacts: [{ type: 'file', data: testFile }],
         timeSpent: 0,
       };
 
@@ -444,7 +444,7 @@ describe('QualityGatesSystem - Optimizations', () => {
         assignedTo: 'dev-1',
         status: 'in-progress',
         dependencies: [],
-        artifacts: [testFile],
+        artifacts: [{ type: 'file', data: testFile }],
         timeSpent: 0,
       };
 
@@ -481,7 +481,7 @@ describe('QualityGatesSystem - Optimizations', () => {
         assignedTo: 'dev-1',
         status: 'in-progress',
         dependencies: [],
-        artifacts: [testFile],
+        artifacts: [{ type: 'file', data: testFile }],
         timeSpent: 0,
       };
 
@@ -530,7 +530,7 @@ describe('QualityGatesSystem - Optimizations', () => {
         assignedTo: 'dev-1',
         status: 'in-progress',
         dependencies: [],
-        artifacts: [testFile],
+        artifacts: [{ type: 'file', data: testFile }],
         timeSpent: 0,
       };
 
@@ -568,7 +568,7 @@ describe('QualityGatesSystem - Optimizations', () => {
         assignedTo: 'dev-1',
         status: 'in-progress',
         dependencies: [],
-        artifacts: [testFile],
+        artifacts: [{ type: 'file', data: testFile }],
         timeSpent: 0,
       };
 

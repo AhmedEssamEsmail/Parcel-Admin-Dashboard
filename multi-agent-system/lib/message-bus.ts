@@ -5,6 +5,7 @@ import {
   CircuitBreaker,
   CircuitBreakerState,
 } from './types';
+import { getLogger } from './logger';
 
 /**
  * Priority queue implementation using a min-heap
@@ -141,8 +142,8 @@ export class MessageBus {
   private threads = new Map<string, AgentMessage[]>();
   private deadLetterQueue: AgentMessage[] = [];
   private processing = new Set<string>();
-  private readonly maxRetries = 3;
-  private readonly baseRetryDelay = 1000; // 1 second
+  private readonly maxRetries: number;
+  private readonly baseRetryDelay: number;
 
   // Circuit breakers per agent
   private circuitBreakers = new Map<string, CircuitBreaker>();
@@ -151,6 +152,22 @@ export class MessageBus {
 
   // Message batching for low-priority messages
   private batchers = new Map<string, MessageBatcher>();
+
+  // Message interception hooks
+  private beforeSendHook?: (message: AgentMessage) => void | Promise<void>;
+  private afterSendHook?: (message: AgentMessage) => void | Promise<void>;
+
+  constructor(options?: {
+    maxRetries?: number;
+    baseRetryDelay?: number;
+    beforeSend?: (message: AgentMessage) => void | Promise<void>;
+    afterSend?: (message: AgentMessage) => void | Promise<void>;
+  }) {
+    this.maxRetries = options?.maxRetries ?? 3;
+    this.baseRetryDelay = options?.baseRetryDelay ?? 1000;
+    this.beforeSendHook = options?.beforeSend;
+    this.afterSendHook = options?.afterSend;
+  }
 
   /**
    * Subscribe an agent to receive messages
@@ -184,6 +201,23 @@ export class MessageBus {
    * Send a message through the bus
    */
   async send(message: AgentMessage): Promise<void> {
+    const logger = getLogger();
+
+    // Call beforeSend hook if registered
+    if (this.beforeSendHook) {
+      await Promise.resolve(this.beforeSendHook(message));
+    }
+
+    // Log message sending
+    logger.logMessageSend(
+      message.from,
+      message.to,
+      message.type,
+      message.priority,
+      message.id,
+      message.threadId
+    );
+
     // Generate thread ID if not present
     if (!message.threadId) {
       message.threadId = this.generateThreadId();
@@ -197,7 +231,11 @@ export class MessageBus {
 
     // Check circuit breaker
     if (this.isCircuitOpen(message.to)) {
-      console.warn(`[MessageBus] Circuit breaker open for agent: ${message.to}`);
+      logger.warn('Message', `Circuit breaker open for agent: ${message.to}`, {
+        messageId: message.id,
+        from: message.from,
+        to: message.to,
+      });
       this.deadLetterQueue.push(message);
       return;
     }
@@ -367,6 +405,11 @@ export class MessageBus {
 
     // Mark as acknowledged
     message.acknowledged = true;
+
+    // Call afterSend hook if registered
+    if (this.afterSendHook) {
+      await Promise.resolve(this.afterSendHook(message));
+    }
   }
 
   /**
@@ -416,6 +459,9 @@ export class MessageBus {
    */
   private async notifyDeliveryFailure(message: AgentMessage, error: unknown): Promise<void> {
     try {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+
       const failureNotification: AgentMessage = {
         id: `delivery-failure-${message.id}`,
         from: 'message-bus',
@@ -427,79 +473,81 @@ export class MessageBus {
           action: 'delivery-failed',
           context: {
             originalMessage: message,
-            error: error instanceof Error ? error.message : String(error),
-            retries: this.maxRetries,
+            error: errorMessage,
+            errorStack: errorStack,
+            retries: message.retryCount || 0,
+            timestamp: new Date().toISOString(),
+            recipient: message.to,
+            suggestedActions: [
+              'Check if recipient agent is registered and online',
+              'Verify recipient agent ID is correct',
+              'Check if recipient has message handlers subscribed',
+              'Consider using escalation if urgent',
+            ],
           },
         },
         timestamp: new Date(),
         acknowledged: false,
       };
 
-      // Deliver directly to sender's handlers (don't queue to avoid infinite loop)
-      const handlers = this.subscribers.get(message.from);
-      if (handlers && handlers.size > 0) {
-        const deliveryPromises = Array.from(handlers).map((handler) =>
-          Promise.resolve(handler(failureNotification))
+      // Try to deliver failure notification
+      const senderHandlers = this.subscribers.get(message.from);
+      if (senderHandlers && senderHandlers.size > 0) {
+        await Promise.all(
+          Array.from(senderHandlers).map((handler) => Promise.resolve(handler(failureNotification)))
         );
-        await Promise.all(deliveryPromises);
+      } else {
+        console.warn(
+          `[MessageBus] Cannot notify sender ${message.from} of delivery failure - no handlers registered`
+        );
       }
     } catch (notificationError) {
-      console.error('Failed to notify sender of delivery failure:', notificationError);
+      const notificationErrorMessage =
+        notificationError instanceof Error ? notificationError.message : String(notificationError);
+      console.error('[MessageBus] Failed to notify sender of delivery failure:', {
+        originalMessageId: message.id,
+        sender: message.from,
+        recipient: message.to,
+        notificationError: notificationErrorMessage,
+        timestamp: new Date().toISOString(),
+      });
     }
   }
 
   /**
-   * Escalate critical message delivery failures
+   * Escalate critical message failures
    */
   private async escalateCriticalFailure(message: AgentMessage, error: unknown): Promise<void> {
-    try {
-      const escalation: AgentMessage = {
-        id: `critical-failure-${message.id}`,
-        from: 'message-bus',
-        to: 'tech-lead',
-        type: 'escalation',
-        priority: 'critical',
-        payload: {
-          action: 'critical-message-failure',
-          context: {
-            originalMessage: message,
-            error: error instanceof Error ? error.message : String(error),
-            retries: this.maxRetries,
-            timestamp: new Date(),
-          },
-        },
-        timestamp: new Date(),
-        acknowledged: false,
-      };
+    console.error(`[MessageBus] CRITICAL: Message ${message.id} failed delivery`, {
+      from: message.from,
+      to: message.to,
+      type: message.type,
+      error: error instanceof Error ? error.message : String(error),
+      retries: message.retryCount || 0,
+    });
 
-      // Deliver directly to tech lead handlers
-      const handlers = this.subscribers.get('tech-lead');
-      if (handlers && handlers.size > 0) {
-        const deliveryPromises = Array.from(handlers).map((handler) =>
-          Promise.resolve(handler(escalation))
-        );
-        await Promise.all(deliveryPromises);
-      }
-    } catch (escalationError) {
-      console.error('Failed to escalate critical message failure:', escalationError);
-    }
+    // In a production system, this would:
+    // 1. Send alerts to monitoring systems
+    // 2. Notify system administrators
+    // 3. Trigger incident response workflows
+    // 4. Log to persistent storage for analysis
   }
 
   /**
    * Generate a unique thread ID
    */
   private generateThreadId(): string {
-    return `thread-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    return `thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }
 
   /**
-   * Get current queue size for an agent
+   * Get queue size for an agent or total
    */
   getQueueSize(agentId?: string): number {
     if (agentId) {
-      return this.queues.get(agentId)?.size() || 0;
+      return this.getQueue(agentId).size();
     }
-    // Return total queue size across all agents
+
     let total = 0;
     for (const queue of this.queues.values()) {
       total += queue.size();
@@ -511,11 +559,12 @@ export class MessageBus {
    * Get circuit breaker state for an agent
    */
   getCircuitBreakerState(agentId: string): CircuitBreakerState {
-    return this.circuitBreakers.get(agentId)?.state || 'closed';
+    const breaker = this.circuitBreakers.get(agentId);
+    return breaker?.state || 'closed';
   }
 
   /**
-   * Clear all queues and subscribers (for testing)
+   * Clear all queues and state
    */
   clear(): void {
     this.queues.clear();
@@ -524,11 +573,33 @@ export class MessageBus {
     this.deadLetterQueue = [];
     this.processing.clear();
     this.circuitBreakers.clear();
-
-    // Clear all batchers
     for (const batcher of this.batchers.values()) {
       batcher.clear();
     }
     this.batchers.clear();
+  }
+
+  /**
+   * Register a beforeSend hook to intercept messages before they are enqueued
+   * This allows parent agents to intercept messages sent by child agents
+   */
+  setBeforeSendHook(hook: (message: AgentMessage) => void | Promise<void>): void {
+    this.beforeSendHook = hook;
+  }
+
+  /**
+   * Register an afterSend hook to intercept messages after they are delivered
+   * This allows parent agents to track message delivery
+   */
+  setAfterSendHook(hook: (message: AgentMessage) => void | Promise<void>): void {
+    this.afterSendHook = hook;
+  }
+
+  /**
+   * Clear message interception hooks
+   */
+  clearHooks(): void {
+    this.beforeSendHook = undefined;
+    this.afterSendHook = undefined;
   }
 }

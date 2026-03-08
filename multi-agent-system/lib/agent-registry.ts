@@ -33,6 +33,15 @@ export class AgentRegistry {
   private definitions: Map<AgentRole, AgentDefinition> = new Map();
   private unauthorizedAttempts: UnauthorizedAttempt[] = [];
   private initialized = false;
+  private silentMode = false;
+
+  /**
+   * Enable or disable silent mode (suppresses console warnings)
+   * Useful for testing to reduce noise
+   */
+  setSilentMode(silent: boolean): void {
+    this.silentMode = silent;
+  }
 
   /**
    * Initialize the registry by loading agent definitions
@@ -208,10 +217,12 @@ export class AgentRegistry {
 
     this.unauthorizedAttempts.push(attempt);
 
-    // Log to console for visibility
-    console.warn(
-      `[AgentRegistry] Unauthorized attempt: Agent ${agentId} tried to perform ${action}. Reason: ${reason}`
-    );
+    // Log to console for visibility (unless in silent mode)
+    if (!this.silentMode) {
+      console.warn(
+        `[AgentRegistry] Unauthorized attempt: Agent ${agentId} tried to perform ${action}. Reason: ${reason}`
+      );
+    }
 
     // Keep only last 1000 attempts to prevent memory issues
     if (this.unauthorizedAttempts.length > 1000) {

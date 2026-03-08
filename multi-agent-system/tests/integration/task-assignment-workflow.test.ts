@@ -26,7 +26,8 @@ describe('Integration: Task Assignment Workflow', () => {
   let techLead: TechLeadCoordinator;
 
   beforeEach(async () => {
-    messageBus = new MessageBus();
+    // Use fast retries for tests (10ms instead of 1000ms)
+    messageBus = new MessageBus({ maxRetries: 3, baseRetryDelay: 10 });
     registry = new AgentRegistry();
     await registry.initialize();
     sharedContext = new SharedContextManager();
@@ -78,15 +79,17 @@ describe('Integration: Task Assignment Workflow', () => {
 
       // Simulate developer completing work
       if (msg.payload.action === 'task-assignment') {
-        const taskId = msg.payload.context.task.taskId;
+        // Type guard for context
+        const context = msg.payload.context as { task: { taskId: string } };
+        const taskId = context.task.taskId;
 
         // Add test results artifact
         const workItem = sharedContext.getWorkItem(taskId);
         if (workItem) {
-          sharedContext.addArtifact(workItem.id, {
-            type: 'test-results',
+          sharedContext.addArtifact(workItem.id, 'test-results', {
             path: 'tests/feature.test.ts',
-            data: { passed: true, coverage: 85 },
+            passed: true,
+            coverage: 85,
             createdAt: new Date(),
           });
 
@@ -133,7 +136,8 @@ describe('Integration: Task Assignment Workflow', () => {
     // Verify: Developer received assignment message
     expect(developerMessages.length).toBeGreaterThanOrEqual(1);
     expect(developerMessages[0].payload.action).toBe('task-assignment');
-    expect(developerMessages[0].payload.context.task.taskId).toBe('task-1');
+    const context0 = developerMessages[0].payload.context as { task: { taskId: string } };
+    expect(context0.task.taskId).toBe('task-1');
 
     // Verify: Work item was created
     const workItem = sharedContext.getWorkItem('task-1');
@@ -186,15 +190,16 @@ describe('Integration: Task Assignment Workflow', () => {
       developerMessages.push(msg);
 
       if (msg.payload.action === 'task-assignment') {
-        const taskId = msg.payload.context.task.taskId;
+        const context = msg.payload.context as { task: { taskId: string } };
+        const taskId = context.task.taskId;
         const workItem = sharedContext.getWorkItem(taskId);
 
         if (workItem) {
           // Add failing test results
-          sharedContext.addArtifact(workItem.id, {
-            type: 'test-results',
+          sharedContext.addArtifact(workItem.id, 'test-results', {
             path: 'tests/feature.test.ts',
-            data: { passed: false, failures: 3 },
+            passed: false,
+            failures: 3,
             createdAt: new Date(),
           });
 
@@ -235,7 +240,8 @@ describe('Integration: Task Assignment Workflow', () => {
     // Find the changes-requested message
     const changesMsg = developerMessages.find((m) => m.payload.action === 'changes-requested');
     expect(changesMsg).toBeDefined();
-    expect(changesMsg?.payload.context.failedGates).toBeDefined();
+    const changesMsgContext = changesMsg?.payload.context as { failedGates?: unknown };
+    expect(changesMsgContext.failedGates).toBeDefined();
 
     // Verify: Work item is back in progress
     const workItem = sharedContext.getWorkItem('task-2');
@@ -277,15 +283,16 @@ describe('Integration: Task Assignment Workflow', () => {
       qaMessages.push(msg);
 
       if (msg.payload.action === 'task-assignment') {
-        const taskId = msg.payload.context.task.taskId;
+        const context = msg.payload.context as { task: { taskId: string } };
+        const taskId = context.task.taskId;
         const workItem = sharedContext.getWorkItem(taskId);
 
         if (workItem) {
           // QA adds test results with good coverage
-          sharedContext.addArtifact(workItem.id, {
-            type: 'test-results',
+          sharedContext.addArtifact(workItem.id, 'test-results', {
             path: 'tests/integration.test.ts',
-            data: { passed: true, coverage: 75 },
+            passed: true,
+            coverage: 75,
             createdAt: new Date(),
           });
 

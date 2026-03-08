@@ -26,7 +26,8 @@ describe('Multi-Agent Collaboration Integration Tests', () => {
     registry = new AgentRegistry();
     await registry.initialize();
 
-    messageBus = new MessageBus();
+    // Use fast retries for tests (10ms instead of 1000ms)
+    messageBus = new MessageBus({ maxRetries: 3, baseRetryDelay: 10 });
     sharedContext = new SharedContextManager();
   });
 
@@ -160,13 +161,18 @@ describe('Multi-Agent Collaboration Integration Tests', () => {
       assignedTo: 'developer-1',
       status: 'in-progress',
       artifacts: [],
+      dependencies: [],
+      timeSpent: 0,
     });
 
     // Act: Update through valid state transitions
     sharedContext.updateWorkItem(workItemId, { status: 'review' });
     sharedContext.updateWorkItem(workItemId, {
       status: 'complete',
-      artifacts: ['file1.ts', 'file2.ts'],
+      artifacts: [
+        { type: 'file', data: 'file1.ts' },
+        { type: 'file', data: 'file2.ts' },
+      ],
     });
 
     // Assert

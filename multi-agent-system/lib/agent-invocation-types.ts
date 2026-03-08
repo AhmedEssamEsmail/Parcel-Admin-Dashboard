@@ -7,6 +7,7 @@
 
 import { AgentRole } from './agent-definition-schema';
 import { AgentMessage } from './types';
+import { SharedContextManager } from './shared-context';
 
 /**
  * Callback invoked when a spawned agent sends a message
@@ -33,12 +34,16 @@ export interface AgentCompletionResult {
   result?: unknown;
   artifacts?: string[]; // Files created/modified
   metrics?: {
-    duration: number; // milliseconds
-    messagesProcessed: number;
-    tasksCompleted: number;
+    duration?: number; // milliseconds (deprecated, use timeSpent)
+    timeSpent?: number; // milliseconds
+    messagesProcessed?: number;
+    messagesExchanged?: number;
+    tasksCompleted?: number;
+    escalations?: number;
   };
   error?: string;
-  timestamp: Date;
+  timestamp?: Date; // deprecated, use completedAt
+  completedAt: Date; // Required for consistency
 }
 
 /**
@@ -48,9 +53,11 @@ export interface AgentEscalation {
   agentId: string;
   role: AgentRole;
   reason: string;
+  issue?: string; // Alias for reason (for backward compatibility)
   context: unknown;
   attemptedSolutions?: string[];
   severity: 'low' | 'medium' | 'high' | 'critical';
+  recommendation?: string;
   timestamp: Date;
 }
 
@@ -161,7 +168,7 @@ export interface SpawnedAgentState {
   role: AgentRole;
   parentAgent?: string;
   canCommunicateWith: string[];
-  sharedContext?: SharedContext;
+  sharedContext?: SharedContextManager | SharedContext | unknown; // BUG FIX #3: Allow all context types
   callbacks: {
     onMessage?: OnMessageCallback;
     onComplete?: OnCompleteCallback;
@@ -171,7 +178,7 @@ export interface SpawnedAgentState {
   timeoutHandle?: NodeJS.Timeout;
   spawnedAt: Date;
   completedAt?: Date;
-  status: 'spawning' | 'active' | 'completed' | 'failed' | 'timeout';
+  status: 'spawning' | 'active' | 'idle' | 'blocked' | 'completed' | 'failed' | 'timeout';
 }
 
 /**
@@ -191,7 +198,7 @@ export interface EnhancedInvocationParams {
   canCommunicateWith?: string[];
 
   /** Shared context manager for state access */
-  sharedContext?: any;
+  sharedContext?: SharedContext;
 
   /** Callback for incoming messages */
   onMessage?: (message: AgentMessage) => void | Promise<void>;
@@ -203,42 +210,17 @@ export interface EnhancedInvocationParams {
   onEscalate?: (escalation: AgentEscalation) => void | Promise<void>;
 
   /** Additional context to pass to the agent */
-  context?: Record<string, any>;
+  context?: Record<string, unknown>;
 
   /** Timeout in milliseconds (default: no timeout) */
   timeout?: number;
 }
 
 /**
- * Result of agent invocation
+ * Result of agent invocation (extends AgentCompletionResult for compatibility)
  */
-export interface AgentInvocationResult {
-  /** ID of the agent that completed */
-  agentId: string;
-
-  /** Role of the agent */
-  role: AgentRole;
-
-  /** Whether the task was completed successfully */
-  success: boolean;
-
-  /** Result data from the agent */
-  result?: any;
-
-  /** Error message if failed */
-  error?: string;
-
-  /** Artifacts produced (files created/modified) */
-  artifacts?: string[];
-
-  /** Metrics about the execution */
-  metrics?: {
-    timeSpent: number;
-    messagesExchanged: number;
-    escalations: number;
-  };
-
-  /** Timestamp when completed */
+export interface AgentInvocationResult extends AgentCompletionResult {
+  /** Timestamp when completed (same as timestamp for compatibility) */
   completedAt: Date;
 }
 
@@ -270,8 +252,8 @@ export interface AgentSpawnConfig {
   /** Communication permissions */
   canCommunicateWith: string[];
 
-  /** Shared context manager */
-  sharedContext?: any;
+  /** Shared context manager or plain context object */
+  sharedContext?: SharedContext | unknown;
 }
 
 /**
@@ -286,6 +268,9 @@ export interface AgentSession {
 
   /** Parent agent ID */
   parentAgentId?: string;
+
+  /** Agents this agent can communicate with (BUG FIX #5) */
+  canCommunicateWith?: string[];
 
   /** Start time */
   startedAt: Date;
@@ -306,6 +291,9 @@ export interface AgentSession {
     messagesSent: number;
     escalations: number;
   };
+
+  /** Shared context (BUG FIX #3) */
+  sharedContext?: SharedContextManager | SharedContext | unknown;
 
   /** Timeout handle */
   timeoutHandle?: NodeJS.Timeout;
