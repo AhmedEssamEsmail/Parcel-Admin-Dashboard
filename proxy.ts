@@ -31,11 +31,42 @@ function getRequestedWarehouse(request: NextRequest): string | null {
   return queryWarehouse.trim().toUpperCase();
 }
 
+function addSecurityHeaders(response: NextResponse): NextResponse {
+  // Content Security Policy
+  response.headers.set(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://*.supabase.co; frame-ancestors 'none';"
+  );
+
+  // HTTP Strict Transport Security
+  response.headers.set(
+    'Strict-Transport-Security',
+    'max-age=31536000; includeSubDomains'
+  );
+
+  // X-Frame-Options
+  response.headers.set('X-Frame-Options', 'DENY');
+
+  // X-Content-Type-Options
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+
+  // Referrer-Policy
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+
+  // Permissions-Policy
+  response.headers.set(
+    'Permissions-Policy',
+    'camera=(), microphone=(), geolocation=()'
+  );
+
+  return response;
+}
+
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
 
   if (PUBLIC_PATHS.has(pathname) || isPublicAsset(pathname)) {
-    return NextResponse.next();
+    return addSecurityHeaders(NextResponse.next());
   }
 
   const isAuthed = request.cookies.get(AUTH_COOKIE_NAME)?.value === AUTH_COOKIE_VALUE;
@@ -61,21 +92,21 @@ export function proxy(request: NextRequest) {
           if (rewritten.searchParams.has("warehouse_code")) {
             rewritten.searchParams.set("warehouse_code", fallbackWarehouse);
           }
-          return NextResponse.rewrite(rewritten);
+          return addSecurityHeaders(NextResponse.rewrite(rewritten));
         }
       }
     }
 
-    return NextResponse.next();
+    return addSecurityHeaders(NextResponse.next());
   }
 
   if (pathname.startsWith("/api/")) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return addSecurityHeaders(NextResponse.json({ error: "Unauthorized" }, { status: 401 }));
   }
 
   const loginUrl = new URL("/login", request.url);
   loginUrl.searchParams.set("next", `${pathname}${search}`);
-  return NextResponse.redirect(loginUrl);
+  return addSecurityHeaders(NextResponse.redirect(loginUrl));
 }
 
 export const config = {

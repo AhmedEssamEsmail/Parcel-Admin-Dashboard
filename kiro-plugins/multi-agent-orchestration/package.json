@@ -1,0 +1,20 @@
+{
+  "name": "@kiro/multi-agent-orchestration",
+  "version": "1.0.0",
+  "description": "Kiro plugin for multi-agent orchestration with message passing, shared context, workflows, and quality gates",
+  "main": "index.ts",
+  "types": "index.ts",
+  "keywords": [
+    "kiro",
+    "plugin",
+    "multi-agent",
+    "orchestration",
+    "workflow",
+    "quality-gates"
+  ],
+  "author": "Kiro Team",
+  "license": "MIT",
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

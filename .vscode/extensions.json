@@ -1,5 +1,9 @@
 {
-    "recommendations": [
-        "openai.chatgpt"
-    ]
+  "recommendations": [
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "ms-playwright.playwright",
+    "bradlc.vscode-tailwindcss",
+    "openai.chatgpt"
+  ]
 }

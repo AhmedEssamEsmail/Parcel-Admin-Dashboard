@@ -1,0 +1,533 @@
+# Implementation Plan: Production Readiness Infrastructure
+
+## Overview
+
+This implementation plan transforms the Parcel Admin Dashboard from a development prototype into a production-ready system with comprehensive testing, CI/CD automation, security hardening, development tooling, production operations, database management, compliance, and code quality infrastructure.
+
+The implementation follows a 5-phase approach that builds incrementally while maintaining backward compatibility with existing validation commands and the AGENTS.md policy. Each task is independently testable and references specific requirements for traceability.
+
+## Tasks
+
+- [x] 1. Set up testing framework foundation
+  - [x] 1.1 Install and configure Vitest with React support
+    - Install vitest, @vitejs/plugin-react, @vitest/coverage-v8
+    - Create vitest.config.ts with jsdom environment and coverage thresholds
+    - Create vitest.setup.ts for global test setup
+    - Configure path aliases for imports
+    - _Requirements: 2.1, 2.4_
+  - [x] 1.2 Install and configure React Testing Library
+    - Install @testing-library/react, @testing-library/jest-dom, @testing-library/user-event
+    - Add React Testing Library setup to vitest.setup.ts
+    - Configure cleanup and mock reset
+    - _Requirements: 2.2_
+  - [x] 1.3 Install and configure Playwright for E2E testing
+    - Install @playwright/test
+    - Create playwright.config.ts with test directory and browser configuration
+    - Configure base URL, timeout, retries, and trace settings
+    - Install Playwright browsers
+    - _Requirements: 4.1, 4.5_
+  - [x] 1.4 Add test scripts to package.json
+    - Add test:unit script for Vitest unit tests
+    - Add test:integration script for integration tests
+    - Add test:e2e script for Playwright E2E tests
+    - Add test script to run all tests
+    - Add test:coverage script for coverage reports
+    - _Requirements: 2.5, 3.5, 5.1, 5.2_
+
+- [x] 2. Implement security middleware and validation
+  - [x] 2.1 Create security headers middleware
+    - Create lib/middleware/security-headers.ts
+    - Implement security headers configuration (CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy)
+    - Export middleware function that adds headers to all responses
+    - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6_
+  - [ ]\* 2.2 Write property test for security headers
+    - **Property 1: Security Headers on All Responses**
+    - **Validates: Requirements 6.1, 6.2, 6.3, 6.4, 6.5, 6.6**
+  - [x] 2.3 Create input validation schemas with Zod
+    - Create lib/validation/schemas.ts
+    - Define validation schemas for file upload (type, size constraints)
+    - Define validation schemas for API route inputs
+    - Export schemas for reuse across API routes
+    - _Requirements: 7.1, 7.6_
+  - [ ]\* 2.4 Write property tests for input validation
+    - **Property 2: API Input Validation**
+    - **Validates: Requirements 7.2, 7.3, 7.4**
+    - **Property 4: File Upload Validation**
+    - **Validates: Requirements 7.6**
+  - [x] 2.5 Create input sanitization utilities
+    - Create lib/validation/sanitize.ts
+    - Implement HTML entity escaping function
+    - Implement path traversal prevention
+    - Export sanitization utilities
+    - _Requirements: 7.5_
+  - [ ]\* 2.6 Write property test for XSS prevention
+    - **Property 3: XSS Prevention Through Sanitization**
+    - **Validates: Requirements 7.5**
+  - [x] 2.7 Wire security middleware into Next.js
+    - Create or update middleware.ts at project root
+    - Import and apply security headers middleware
+    - Ensure middleware runs on all routes
+    - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6_
+
+- [x] 3. Create CI/CD pipeline with GitHub Actions
+  - [x] 3.1 Create GitHub Actions workflow file
+    - Create .github/workflows/ci.yml
+    - Configure workflow to trigger on pull requests and pushes to main
+    - Set up Node.js 20.x with npm caching
+    - _Requirements: 1.1_
+  - [x] 3.2 Add build job to CI workflow
+    - Add build job that installs dependencies and runs build
+    - Configure job to fail if build fails
+    - Add caching for node_modules based on package-lock.json
+    - _Requirements: 1.1, 1.6_
+  - [x] 3.3 Add test job to CI workflow
+    - Add test job that runs unit and integration tests
+    - Configure coverage report generation
+    - Add coverage threshold check (60% minimum)
+    - Upload coverage artifacts
+    - _Requirements: 1.4, 5.6_
+  - [x] 3.4 Add lint job to CI workflow
+    - Add lint job that runs ESLint
+    - Add type checking with tsc --noEmit
+    - Add Prettier format verification
+    - _Requirements: 1.2, 1.3, 13.7_
+  - [x] 3.5 Add security job to CI workflow
+    - Add security job that runs npm audit
+    - Configure job to fail on critical vulnerabilities
+    - _Requirements: 8.4, 8.5_
+  - [x] 3.6 Add E2E test job to CI workflow
+    - Add e2e job that installs Playwright browsers
+    - Configure test database setup
+    - Run E2E tests with artifact upload on failure
+    - _Requirements: 1.4_
+  - [x] 3.7 Configure job parallelization and status reporting
+    - Configure jobs to run in parallel where possible
+    - Set up status checks to block PR merge on failure
+    - Add timeout of 10 minutes for workflow
+    - _Requirements: 1.5, 1.6_
+
+- [x] 4. Checkpoint - Verify foundation is working
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 5. Set up Docker development environment
+  - [x] 5.1 Create Dockerfile for the application
+    - Create Dockerfile at project root
+    - Use node:20-alpine base image
+    - Configure working directory, dependency installation, and dev server
+    - Expose port 3000
+    - _Requirements: 11.1, 11.4_
+  - [x] 5.2 Create docker-compose.yml configuration
+    - Create docker-compose.yml at project root
+    - Define app service with volume mounts for live editing
+    - Define Supabase PostgreSQL service
+    - Configure service dependencies and networking
+    - Configure volume for database persistence
+    - _Requirements: 11.2, 11.3, 11.6, 11.7_
+  - [ ]\* 5.3 Test Docker environment startup time
+    - Verify container environment starts within 60 seconds
+    - Test hot reload functionality
+    - Test database persistence across restarts
+    - _Requirements: 11.5_
+
+- [x] 6. Configure pre-commit hooks and code quality tools
+  - [x] 6.1 Install and configure Husky for Git hooks
+    - Install husky package
+    - Initialize Husky with npx husky install
+    - Create .husky/pre-commit hook script
+    - Add prepare script to package.json for Husky installation
+    - _Requirements: 12.1_
+  - [x] 6.2 Install and configure lint-staged
+    - Install lint-staged package
+    - Add lint-staged configuration to package.json
+    - Configure lint-staged to run ESLint, Prettier, and tsc on staged files
+    - _Requirements: 12.2, 12.3, 12.4_
+  - [x] 6.3 Install and configure Prettier
+    - Install prettier package
+    - Create .prettierrc.json with formatting rules
+    - Configure formatting for TypeScript, JSON, Markdown, and CSS files
+    - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5_
+  - [x] 6.4 Install and configure commitlint
+    - Install @commitlint/cli and @commitlint/config-conventional
+    - Create .commitlintrc.json with conventional commit rules
+    - Add commit-msg hook to .husky for commit message validation
+    - _Requirements: 25.1, 25.2, 25.5_
+  - [x] 6.5 Wire pre-commit hooks together
+    - Update .husky/pre-commit to run lint-staged
+    - Ensure hooks prevent commit on failure
+    - Test that hooks complete within 15 seconds for typical commits
+    - _Requirements: 12.5, 12.6, 13.6_
+
+- [x] 7. Configure VS Code workspace settings
+  - [x] 7.1 Create VS Code extensions recommendations
+    - Create .vscode/extensions.json
+    - Add recommended extensions: ESLint, Prettier, Playwright, Tailwind CSS
+    - _Requirements: 14.1_
+  - [x] 7.2 Create VS Code workspace settings
+    - Create .vscode/settings.json
+    - Configure format on save with Prettier
+    - Configure ESLint auto-fix on save
+    - Configure TypeScript validation settings
+    - _Requirements: 14.2, 14.3, 14.4, 14.5_
+  - [x] 7.3 Create VS Code debug configuration
+    - Create .vscode/launch.json
+    - Add debug configuration for Next.js server-side
+    - Add debug configuration for Next.js client-side
+    - _Requirements: 14.6_
+
+- [x] 8. Checkpoint - Verify development tooling
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 9. Implement health check endpoint
+  - [x] 9.1 Create health check API route
+    - Create app/api/health/route.ts ✓
+    - Implement GET handler that checks database connectivity ✓
+    - Return HTTP 200 with health status when healthy ✓
+    - Return HTTP 503 when database is unreachable ✓
+    - Include timestamp, version, and response time in response ✓
+    - _Requirements: 15.1, 15.2, 15.3, 15.4, 15.6, 15.7_
+  - [ ]\* 9.2 Write property tests for health endpoint
+    - **Property 6: Health Check Database Verification**
+    - **Validates: Requirements 15.2, 15.3**
+    - **Property 7: Health Endpoint Response Metadata**
+    - **Validates: Requirements 15.6, 15.7**
+  - [ ]\* 9.3 Write unit tests for health endpoint
+    - Test successful database connection scenario
+    - Test database connection failure scenario
+    - Test response time is under 2 seconds
+    - _Requirements: 15.5_
+
+- [x] 10. Implement graceful shutdown handler
+  - [x] 10.1 Create graceful shutdown module
+    - Create lib/server/shutdown.ts ✓
+    - Implement request tracking with Set of active promises ✓
+    - Implement shutdown handler for SIGTERM and SIGINT signals ✓
+    - Implement 30-second timeout for in-flight requests ✓
+    - Log shutdown events ✓
+    - _Requirements: 16.1, 16.2, 16.3, 16.4, 16.5_
+  - [ ]\* 10.2 Write unit tests for graceful shutdown
+    - Test that new requests are rejected during shutdown
+    - Test that in-flight requests complete before shutdown
+    - Test that forced shutdown occurs after timeout
+    - _Requirements: 16.1, 16.2, 16.4_
+
+- [x] 11. Create database backup scripts ✓ (Agent 3)
+  - [x] 11.1 Create backup automation script ✓
+    - Create scripts/db/backup.sh
+    - Implement pg_dump with compression
+    - Implement backup integrity verification
+    - Implement backup encryption with AES-256
+    - Implement cleanup of old backups (7 days daily, 28 days weekly)
+    - Make script executable
+    - _Requirements: 21.1, 21.2, 21.3, 21.4, 21.6_
+  - [ ]\* 11.2 Write property tests for backup system
+    - **Property 11: Backup Integrity Verification**
+    - **Validates: Requirements 21.4**
+    - **Property 12: Backup Encryption**
+    - **Validates: Requirements 21.6**
+  - [x] 11.3 Document backup and restore procedures ✓
+    - Create docs/database/backup-restore.md
+    - Document automated backup schedule
+    - Document backup retention policy
+    - Document backup storage location
+    - Document restore procedure steps
+    - Document backup verification process
+    - Document point-in-time recovery capabilities
+    - _Requirements: 17.1, 17.2, 17.3, 17.4, 17.5, 17.6_
+
+- [x] 12. Create seed data generator ✓ (Agent 3)
+  - [x] 12.1 Create seed data script ✓
+    - Create scripts/db/seed.ts
+    - Implement idempotent seed data generation (clear existing seed data first)
+    - Generate sample parcel records with is_seed_data flag
+    - Generate sample delivery records with is_seed_data flag
+    - Generate sample user accounts
+    - Add script to package.json as db:seed
+    - _Requirements: 20.1, 20.2, 20.3, 20.4, 20.5_
+  - [ ]\* 12.2 Write property test for seed data idempotence
+    - **Property 10: Seed Data Idempotence**
+    - **Validates: Requirements 20.5**
+  - [ ]\* 12.3 Test seed data performance
+    - Verify seed data loads within 30 seconds
+    - _Requirements: 20.6_
+  - [x] 12.4 Create migration for seed data markers ✓
+    - Create supabase/migrations/YYYYMMDD_add_seed_data_markers.sql
+    - Add is_seed_data boolean column to parcel_logs table
+    - Add is_seed_data boolean column to delivery_details table
+    - Create indexes on is_seed_data columns
+    - _Requirements: 20.1_
+  - [x] 12.5 Create rollback script for seed data markers migration ✓
+    - Create supabase/migrations/rollback/YYYYMMDD_rollback_add_seed_data_markers.sql
+    - Drop indexes on is_seed_data columns
+    - Drop is_seed_data columns from tables
+    - _Requirements: 19.1_
+
+- [ ] 13. Checkpoint - Verify production operations
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [ ] 14. Implement audit logging system
+  - [x] 14.1 Create audit logging module
+    - Create lib/audit/logger.ts
+    - Define AuditEventType enum (auth.login, auth.logout, data.upload, data.delete, config.change)
+    - Define AuditEvent interface
+    - Implement logAuditEvent function
+    - Implement withAuditLog middleware wrapper for API routes
+    - _Requirements: 24.1, 24.2, 24.3, 24.4, 24.5, 24.6_
+    - _Files: lib/audit/logger.ts_
+  - [ ]\* 14.2 Write property tests for audit logging
+    - **Property 13: Audit Logging for Authentication**
+    - **Validates: Requirements 24.1**
+    - **Property 14: Audit Logging for User Actions**
+    - **Validates: Requirements 24.2, 24.3, 24.4**
+    - **Property 15: Audit Log Required Fields**
+    - **Validates: Requirements 24.5, 24.6**
+  - [ ]\* 14.3 Write unit tests for audit logger
+    - Test log entry creation for each event type
+    - Test required fields are present in all log entries
+    - Test metadata is properly stored
+    - _Requirements: 24.1, 24.2, 24.3, 24.4, 24.5, 24.6_
+
+- [ ] 15. Create database migration for audit logs
+  - [x] 15.1 Create audit logs table migration
+    - Create supabase/migrations/YYYYMMDD_add_audit_logs.sql
+    - Create audit_logs table with all required columns (id, timestamp, event_type, user_id, ip_address, user_agent, resource_type, resource_id, metadata)
+    - Create indexes on timestamp, user_id, and event_type
+    - Add monthly partitioning for performance
+    - _Requirements: 24.7_
+    - _Files: supabase/migrations/20260307010000_add_audit_logs.sql_
+  - [x] 15.2 Create rollback script for audit logs migration
+    - Create supabase/migrations/rollback/YYYYMMDD_rollback_add_audit_logs.sql
+    - Drop audit_logs table and all indexes
+    - _Requirements: 19.1, 19.4_
+    - _Files: supabase/migrations/rollback/20260307010000_rollback_add_audit_logs.sql_
+  - [ ]\* 15.3 Write property tests for migration rollback
+    - **Property 8: Migration Rollback Round-trip**
+    - **Validates: Requirements 19.1, 19.4**
+    - **Property 9: Migration Operation Logging**
+    - **Validates: Requirements 19.5**
+  - [ ] 15.4 Create migration testing script
+    - Create scripts/db/test-migration.sh
+    - Implement script to apply migration, verify, rollback, and re-apply
+    - Make script executable
+    - _Requirements: 19.2, 19.3_
+
+- [x] 16. Document data retention and compliance policies ✓ (Agent 3)
+  - [x] 16.1 Create data retention policy documentation ✓
+    - Create docs/compliance/data-retention.md
+    - Document retention period for parcel delivery data (2 years)
+    - Document retention period for audit logs (7 years)
+    - Document retention period for user session data (30 days)
+    - Document data deletion procedures
+    - Document data archival procedures
+    - Document compliance with relevant regulations (GDPR, CCPA, SOC 2)
+    - _Requirements: 23.1, 23.2, 23.3, 23.4, 23.5, 23.6_
+  - [x] 16.2 Create data retention automation script ✓
+    - Create scripts/compliance/cleanup.ts
+    - Implement soft delete for old parcel data (2 years)
+    - Implement hard delete after 30-day grace period
+    - Add script to package.json as compliance:cleanup
+    - _Requirements: 23.4_
+  - [x] 16.3 Create GDPR data deletion script ✓
+    - Create scripts/compliance/gdpr-delete.ts
+    - Implement user data deletion for GDPR right to erasure
+    - Add script to package.json as compliance:gdpr-delete
+    - _Requirements: 23.6_
+  - [x] 16.4 Create data export script ✓
+    - Create scripts/compliance/data-export.ts
+    - Implement user data export for CCPA compliance
+    - Add script to package.json as compliance:data-export
+    - _Requirements: 23.6_
+
+- [ ] 17. Create GitHub templates and guidelines
+  - [x] 17.1 Create pull request template
+    - Create .github/PULL_REQUEST_TEMPLATE.md
+    - Include sections for description, type of change, testing performed, breaking changes, and checklist
+    - _Requirements: 26.1, 26.2, 26.3, 26.4, 26.5, 26.6_
+    - _Files: .github/PULL_REQUEST_TEMPLATE.md_
+  - [x] 17.2 Create bug report issue template
+    - Create .github/ISSUE_TEMPLATE/bug_report.md
+    - Include sections for description, reproduction steps, expected behavior, actual behavior, environment, screenshots, and additional context
+    - _Requirements: 27.1, 27.3, 27.4, 27.5, 27.6_
+    - _Files: .github/ISSUE_TEMPLATE/bug_report.md_
+  - [x] 17.3 Create feature request issue template
+    - Create .github/ISSUE_TEMPLATE/feature_request.md
+    - Include sections for use case, proposed solution, alternatives considered, and additional context
+    - _Requirements: 27.2, 27.7_
+    - _Files: .github/ISSUE_TEMPLATE/feature_request.md_
+  - [x] 17.4 Create code review guidelines
+    - Create docs/contributing/code-review.md
+    - Document code review checklist (functionality, code quality, testing, security, performance, documentation)
+    - Document review response time expectations
+    - Document approval requirements for merging
+    - Document guidelines for constructive feedback
+    - Document security and performance review requirements
+    - _Requirements: 28.1, 28.2, 28.3, 28.4, 28.5, 28.6_
+    - _Files: docs/contributing/code-review.md_
+  - [x] 17.5 Document commit message conventions
+    - Add commit message documentation to docs/contributing/code-review.md or create separate file
+    - Document Conventional Commits format
+    - Document allowed commit types (feat, fix, docs, style, refactor, test, chore)
+    - Document commit scope guidelines
+    - Document breaking change notation
+    - Provide commit message examples
+    - _Requirements: 25.1, 25.2, 25.3, 25.4, 25.6_
+    - _Files: docs/contributing/code-review.md (includes commit conventions)_
+
+- [ ] 18. Add LICENSE file and Dependabot configuration
+  - [x] 18.1 Create LICENSE file
+    - Create LICENSE file at project root
+    - Use MIT License with appropriate copyright holder and year
+    - _Requirements: 22.1, 22.2, 22.3, 22.4, 22.5_
+    - _Files: LICENSE_
+  - [x] 18.2 Create Dependabot configuration
+    - Create .github/dependabot.yml
+    - Configure daily npm dependency checks at 03:00 UTC
+    - Set open PR limit to 10
+    - Configure reviewers, labels, and commit message format
+    - Ignore major version updates
+    - Group dev dependencies together
+    - _Requirements: 8.1, 8.2, 8.3_
+    - _Files: .github/dependabot.yml_
+
+- [ ] 19. Checkpoint - Verify compliance and quality infrastructure
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 20. Write unit tests for React components
+  - [x] 20.1 Write unit tests for upload form component
+    - Create tests/unit/components/upload-form.test.tsx ✓
+    - Test file selection and validation ✓
+    - Test form submission ✓
+    - Test error handling ✓
+    - _Requirements: 2.3, 2.6_
+  - [x] 20.2 Write unit tests for data table component
+    - Create tests/unit/components/data-table.test.tsx ✓
+    - Test data rendering ✓
+    - Test sorting and filtering ✓
+    - Test empty state ✓
+    - _Requirements: 2.3, 2.6_
+  - [x] 20.3 Write unit tests for chart widget component
+    - Create tests/unit/components/chart-widget.test.tsx ✓
+    - Test chart rendering with data ✓
+    - Test chart updates on data change ✓
+    - Test empty state ✓
+    - _Requirements: 2.3, 2.6_
+  - [x] 20.4 Write unit tests for filter panel component
+    - Create tests/unit/components/filter-panel.test.tsx ✓
+    - Test filter selection ✓
+    - Test filter application ✓
+    - Test filter reset ✓
+    - _Requirements: 2.3, 2.6_
+  - [x] 20.5 Write unit tests for navigation component
+    - Create tests/unit/components/nav.test.tsx ✓
+    - Test navigation links ✓
+    - Test active state ✓
+    - Test responsive behavior ✓
+    - _Requirements: 2.3, 2.6_
+
+- [ ] 21. Write integration tests for API routes
+  - [x] 21.1 Write integration tests for compare-periods API
+    - Create tests/integration/api/compare-periods.test.ts
+    - Mock Supabase client
+    - Test successful period comparison
+    - Test validation errors
+    - Test database errors
+    - _Requirements: 3.1, 3.2, 3.3, 3.4_
+    - _Files: tests/integration/api/compare-periods.test.ts_
+  - [x] 21.2 Write integration tests for dashboard API
+    - Create tests/integration/api/dashboard.test.ts
+    - Mock Supabase client
+    - Test successful data retrieval
+    - Test empty data handling
+    - Test error handling
+    - _Requirements: 3.1, 3.2, 3.3, 3.4_
+    - _Files: tests/integration/api/dashboard.test.ts_
+  - [x] 21.3 Write integration tests for upload workflow
+    - Create tests/integration/api/upload-workflow.test.ts
+    - Mock Supabase client and file system
+    - Test complete upload workflow
+    - Test file validation
+    - Test data processing
+    - Test error scenarios
+    - _Requirements: 3.1, 3.2, 3.3, 3.4_
+    - _Files: tests/integration/api/upload-workflow.test.ts_
+
+- [x] 22. Write end-to-end tests for critical workflows ✓ (Agent 3)
+  - [x] 22.1 Write E2E test for authentication flow ✓
+    - Create tests/e2e/auth.spec.ts
+    - Test login with valid credentials
+    - Test login with invalid credentials
+    - Test logout
+    - Test session persistence
+    - _Requirements: 4.2, 4.6_
+  - [x] 22.2 Write E2E test for data upload workflow ✓
+    - Create tests/e2e/upload.spec.ts
+    - Test complete upload workflow from file selection to success message
+    - Test file validation errors
+    - Test upload progress indication
+    - _Requirements: 4.3, 4.6_
+  - [x] 22.3 Write E2E test for dashboard visualization ✓
+    - Create tests/e2e/dashboard.spec.ts
+    - Test dashboard data loading
+    - Test chart rendering
+    - Test filter application
+    - Test period comparison
+    - _Requirements: 4.4, 4.6_
+
+- [ ] 23. Create security and operations documentation
+  - [x] 23.1 Document CORS configuration
+    - Create docs/security/cors.md
+    - Document allowed CORS origins for development and production
+    - Document allowed HTTP methods
+    - Document allowed headers
+    - Provide configuration examples
+    - _Requirements: 9.1, 9.2, 9.3, 9.4_
+    - _Files: docs/security/cors.md_
+  - [ ]\* 23.2 Write property test for CORS origin rejection
+    - **Property 5: Disallowed CORS Origins Rejection**
+    - **Validates: Requirements 9.5**
+  - [x] 23.3 Document rate limiting implementation
+    - Create docs/security/rate-limiting.md
+    - Document current rate limiter implementation
+    - Document rate limit thresholds per endpoint
+    - Document rate limit window duration
+    - Document rate limit response headers
+    - Document rate limit bypass mechanisms for testing
+    - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5_
+    - _Files: docs/security/rate-limiting.md_
+  - [x] 23.4 Document performance benchmarks
+    - Create docs/operations/performance.md
+    - Document baseline response times for critical API endpoints
+    - Document baseline page load times for key pages
+    - Document baseline database query performance
+    - Document performance testing methodology
+    - Document acceptable performance thresholds
+    - _Requirements: 18.1, 18.2, 18.3, 18.4, 18.5_
+    - _Files: docs/operations/performance.md_
+
+- [ ] 24. Final checkpoint and verification
+  - Ensure all tests pass, ask the user if questions arise.
+
+## Notes
+
+- Tasks marked with `*` are optional and can be skipped for faster MVP
+- Each task references specific requirements for traceability
+- Checkpoints ensure incremental validation at the end of each phase
+- Property tests validate universal correctness properties from the design document
+- Unit tests validate specific examples and edge cases
+- All database changes must be done via migrations with rollback scripts (per AGENTS.md policy)
+- The implementation maintains backward compatibility with existing validation commands
+- Test coverage threshold is set to 60% minimum across all metrics
+
+## Validation Commands
+
+After completing all tasks, verify the implementation with:
+
+```bash
+npm run build
+npm run validate
+npm run test:run
+npm run test:integration
+npm run type-check
+npm run lint
+```
+
+All commands must pass with no errors before the implementation is considered complete.
