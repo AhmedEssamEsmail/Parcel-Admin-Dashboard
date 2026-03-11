@@ -48,7 +48,7 @@
     "eslint-config-next": "16.1.6",
     "husky": "^9.1.7",
     "jsdom": "^28.1.0",
-    "lint-staged": "^16.3.2",
+    "lint-staged": "^16.3.3",
     "prettier": "^3.8.1",
     "tsx": "^4.21.0",
     "typescript": "^5",
